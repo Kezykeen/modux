@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { playClickSfx } from '../audio/uiSfx'
 
 interface SegmentedToggleProps<T extends string> {
   options: { value: T; label: string }[]
@@ -22,7 +23,10 @@ export function SegmentedToggle<T extends string>({
         return (
           <button
             key={opt.value}
-            onClick={() => onChange(opt.value)}
+            onClick={() => {
+              playClickSfx()
+              onChange(opt.value)
+            }}
             className={`relative rounded-full px-3.5 py-1.5 text-[11.5px] font-semibold tracking-wide whitespace-nowrap transition-colors ${
               isActive ? 'text-white' : 'text-muted hover:text-ink'
             }`}

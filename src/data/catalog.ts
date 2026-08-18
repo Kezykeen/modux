@@ -1,12 +1,13 @@
-import type { CatalogItem, CategoryDef, CategoryId, Rarity } from '../types'
+import type { BuildSelection, CatalogItem, CategoryDef, CategoryId, Rarity } from '../types'
 
+/** Three per side, ordered head-to-toe so each card sits near the part it edits. */
 export const CATEGORIES: CategoryDef[] = [
-  { id: 'top', label: 'Top', side: 'left', anchor: 36, hint: 'Jackets, hoodies & tees' },
-  { id: 'pants', label: 'Pants', side: 'left', anchor: 60, hint: 'Bottoms & layers' },
-  { id: 'shoes', label: 'Shoes', side: 'left', anchor: 84, hint: 'Footwear' },
-  { id: 'hair', label: 'Hair', side: 'right', anchor: 14, hint: 'Hairstyles' },
-  { id: 'hats', label: 'Hats', side: 'right', anchor: 24, hint: 'Headwear' },
-  { id: 'weapon', label: 'Weapon', side: 'right', anchor: 48, hint: 'Held accessories' },
+  { id: 'hair', label: 'Hair', side: 'left', anchor: 26, hint: 'Hairstyles' },
+  { id: 'top', label: 'Tops', side: 'left', anchor: 50, hint: 'Jackets, hoodies & tees' },
+  { id: 'pants', label: 'Pants', side: 'left', anchor: 74, hint: 'Bottoms & layers' },
+  { id: 'weapon', label: 'Weapons', side: 'right', anchor: 26, hint: 'Blades & shields' },
+  { id: 'accessory', label: 'Accessories', side: 'right', anchor: 50, hint: 'Details & ornaments' },
+  { id: 'shoes', label: 'Shoes', side: 'right', anchor: 74, hint: 'Footwear' },
 ]
 
 export const RARITY_META: Record<Rarity, { label: string; color: string; glow: string }> = {
@@ -16,6 +17,9 @@ export const RARITY_META: Record<Rarity, { label: string; color: string; glow: s
   legendary: { label: 'Legendary', color: '#fbbf24', glow: 'rgba(251,191,36,0.5)' },
 }
 
+const asset = (path: string) => encodeURI(path)
+const render = (name: string) => encodeURI(`/assets/Renders/${name}.png`)
+
 let uid = 0
 const item = (
   categoryId: CategoryId,
@@ -24,7 +28,9 @@ const item = (
   rarity: Rarity,
   colorFrom: string,
   colorTo: string,
+  assetPath: string,
   popularity = 50,
+  hasRender = true,
 ): CatalogItem => ({
   id: `${categoryId}-${uid++}`,
   categoryId,
@@ -34,52 +40,48 @@ const item = (
   colorFrom,
   colorTo,
   popularity,
+  assetPath: asset(assetPath),
+  previewPath: hasRender ? render(name) : undefined,
 })
 
 export const CATALOG: CatalogItem[] = [
-  // Hair
-  item('hair', 'Cyber Spiky Hair', 4.99, 'common', '#3f3b47', '#0f0d14', 82),
-  item('hair', 'Shadow Horns', 7.99, 'epic', '#7c3aed', '#2e1065', 96),
-  item('hair', 'Purple Flame Aura', 8.99, 'epic', '#a855f7', '#ec4899', 91),
-  item('hair', 'Silver Undercut', 5.49, 'rare', '#94a3b8', '#334155', 60),
-  item('hair', 'Molten Braids', 6.99, 'rare', '#f97316', '#7c2d12', 54),
-  item('hair', 'Void Mohawk', 9.99, 'legendary', '#22d3ee', '#0e7490', 71),
+  item('hair', 'Cyber Black Hair', 5.99, 'rare', '#1f1b24', '#0a0810', '/assets/Hair/Cyber Black Hair.glb', 88),
+  item('hair', 'Cyber Grey Hair', 4.99, 'common', '#6b6574', '#2a2630', '/assets/Hair/Cyber Grey Hair.glb', 74),
 
-  // Hats
-  item('hats', 'Tech Visor', 5.99, 'rare', '#38bdf8', '#0c4a6e', 88),
-  item('hats', 'Ninja Mask', 3.99, 'common', '#1f2937', '#0b0f17', 66),
-  item('hats', 'Cyber Headset', 6.99, 'rare', '#a855f7', '#4c1d95', 74),
-  item('hats', 'Crown of Ash', 12.99, 'legendary', '#fbbf24', '#78350f', 95),
-  item('hats', 'Riot Helm', 7.49, 'epic', '#f472b6', '#831843', 58),
+  item('top', 'Techwear Top', 9.99, 'rare', '#4c1d95', '#1e1b4b', '/assets/Top/Techwear Top.glb', 90),
+  item('top', 'Cyber Moon Top', 12.99, 'epic', '#7c3aed', '#312e81', '/assets/Top/Cyber Moon Top/Cyber Moon Top.glb', 86),
 
-  // Top
-  item('top', 'Dark Hoodie', 4.99, 'common', '#27272a', '#09090b', 70),
-  item('top', 'Techwear Jacket', 6.99, 'rare', '#4c1d95', '#1e1b4b', 84),
-  item('top', 'Neon Trench Coat', 10.99, 'epic', '#ec4899', '#701a75', 77),
-  item('top', 'Void Plate Armor', 15.99, 'legendary', '#7c3aed', '#1e1033', 93),
-  item('top', 'Street Bomber', 5.49, 'common', '#334155', '#0f172a', 45),
+  item('pants', 'Black Pants', 5.49, 'common', '#1e293b', '#0b1220', '/assets/Pants/Black Pants.glb', 62),
+  item('pants', 'Cyber Black Pants', 6.99, 'rare', '#111827', '#0f172a', '/assets/Pants/Cyber Black Pants.glb', 84),
+  item('pants', 'Cyber Moon Pants', 8.99, 'epic', '#5b21b6', '#1e1b4b', '/assets/Pants/Cyber Moon Pants/Cyber Moon Pants.glb', 81),
 
-  // Pants
-  item('pants', 'Cyber Pants', 3.99, 'common', '#1e293b', '#0b1220', 62),
-  item('pants', 'Chain Cargo', 6.49, 'rare', '#3730a3', '#1e1b4b', 71),
-  item('pants', 'Shadow Leggings', 5.99, 'epic', '#581c87', '#1a0b2e', 80),
-  item('pants', 'Molten Joggers', 4.49, 'common', '#7c2d12', '#1c0a03', 40),
+  item('shoes', 'Black Strips', 5.99, 'common', '#e2e8f0', '#334155', '/assets/Shoes/Black Strips.glb', 80),
+  item('shoes', 'Purple Strips', 6.49, 'rare', '#a855f7', '#4c1d95', '/assets/Shoes/Purple Strips.glb', 77),
+  item('shoes', 'Chunky Sneakers', 7.49, 'rare', '#64748b', '#1e293b', '/assets/Shoes/Chunky Sneakers.glb', 71),
 
-  // Shoes
-  item('shoes', 'Chunky Sneakers', 4.99, 'common', '#e2e8f0', '#334155', 68),
-  item('shoes', 'Neon Runners', 6.99, 'rare', '#22d3ee', '#0e7490', 85),
-  item('shoes', 'Void Boots', 8.99, 'epic', '#a855f7', '#2e1065', 79),
-  item('shoes', 'Golden Treads', 13.99, 'legendary', '#fbbf24', '#713f12', 90),
+  item('weapon', 'Double Katana', 14.99, 'epic', '#94a3b8', '#0f172a', '/assets/Weapon/Double Katana.glb', 92),
+  item('weapon', 'Neon Shield', 16.99, 'legendary', '#22d3ee', '#6d28d9', '/assets/Weapon/Neon Shield.glb', 89),
 
-  // Weapon
-  item('weapon', 'Neon Katana', 9.99, 'epic', '#f472b6', '#831843', 97),
-  item('weapon', 'Shock Baton', 5.99, 'rare', '#38bdf8', '#0c4a6e', 63),
-  item('weapon', 'Twin Daggers', 7.49, 'rare', '#94a3b8', '#1f2937', 55),
-  item('weapon', 'Reaper Scythe', 16.99, 'legendary', '#7c3aed', '#1e1033', 99),
+  item('accessory', 'Ninja Mask', 5.99, 'rare', '#38bdf8', '#0c4a6e', '/assets/Accessories/Ninja Mask.glb', 85),
+  item('accessory', 'Techwear Chain', 6.99, 'common', '#94a3b8', '#334155', '/assets/Accessories/Techwear Chain.glb', 72),
+  item('accessory', 'Shadow Horns', 10.99, 'epic', '#a855f7', '#ec4899', '/assets/Accessories/Shadow Horns.glb', 93),
+  item('accessory', 'Shadow Shoulder Pet', 12.99, 'legendary', '#fbbf24', '#78350f', '/assets/Accessories/Shadow Shoulder Pet.glb', 96),
 ]
 
-export const DEFAULT_SELECTION: Partial<Record<CategoryId, string>> = {
-  hair: CATALOG.find((c) => c.name === 'Shadow Horns')?.id,
-  top: CATALOG.find((c) => c.name === 'Dark Hoodie')?.id,
-  weapon: CATALOG.find((c) => c.name === 'Neon Katana')?.id,
+const byName = (name: string) => {
+  const id = CATALOG.find((entry) => entry.name === name)?.id
+  if (!id) throw new Error(`Unknown catalog item: ${name}`)
+  return id
 }
+
+/** Hair, tops, pants and shoes always start equipped and cannot be emptied. */
+export const DEFAULT_SELECTION: BuildSelection = {
+  hair: byName('Cyber Black Hair'),
+  top: byName('Techwear Top'),
+  pants: byName('Cyber Black Pants'),
+  shoes: byName('Black Strips'),
+  weapon: [],
+  accessory: [],
+}
+
+export const BODY_ASSET_PATH = encodeURI('/assets/Body.glb')

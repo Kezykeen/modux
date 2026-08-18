@@ -29,7 +29,7 @@ export function ItemGrid() {
   }, [activeCategory, rarity, sort]);
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-col gap-2.5">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5">
       <FilterBar
         rarity={rarity}
         onRarityChange={setRarity}
@@ -39,7 +39,7 @@ export function ItemGrid() {
         onLayoutChange={setLayout}
       />
 
-      <div className="thin-scrollbar h-62 min-w-0 overflow-y-auto pr-1">
+      <div className="thin-scrollbar scrollbar-none min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <AnimatePresence mode="popLayout">
           {items.length === 0 ? (
             <motion.div
@@ -52,7 +52,10 @@ export function ItemGrid() {
               No parts match your filters
             </motion.div>
           ) : layout === "grid" ? (
-            <motion.div key="grid" className="grid grid-cols-3 gap-2 [&>*]:min-w-0">
+            <motion.div
+              key="grid"
+              className="grid w-full grid-cols-3 gap-1.5 pt-0.5"
+            >
               {items.map((item, i) => (
                 <motion.div
                   key={item.id}
@@ -61,6 +64,7 @@ export function ItemGrid() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.25, delay: i * 0.02 }}
+                  className="min-w-0 cursor-pointer"
                 >
                   <ItemCard item={item} layout="grid" />
                 </motion.div>

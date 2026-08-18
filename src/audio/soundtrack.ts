@@ -1,16 +1,15 @@
-// Lazy-loaded background soundtrack. The mp3 is never fetched until the user
-// opts in (clicks the sound toggle), so it has zero cost on initial page load.
-// We optionally warm the HTTP cache during idle time so playback feels instant
-// once the user does opt in, without competing with critical render work.
+// Background soundtrack. The element is warmed as early as possible so the
+// 6MB+ download is already in flight (or finished) by the time a gesture
+// unlocks playback — otherwise the first click waits on the network.
 import trackUrl from './Powerful(chosic.com).mp3'
 
 const TARGET_VOLUME = 0.5
-const FADE_IN_MS = 600
+/** Short enough that the track is heard almost immediately after unlock. */
+const FADE_IN_MS = 280
 const FADE_OUT_MS = 350
 
 let audio: HTMLAudioElement | null = null
 let fadeHandle: number | null = null
-let prefetched = false
 
 function getAudio(): HTMLAudioElement {
   if (!audio) {
@@ -53,23 +52,15 @@ function fadeTo(el: HTMLAudioElement, target: number, durationMs: number, onDone
   fadeHandle = requestAnimationFrame(step)
 }
 
-/** Warms the browser's HTTP cache during idle time, without blocking anything. */
-export function prefetchSoundtrack() {
-  if (prefetched || typeof window === 'undefined') return
-  prefetched = true
-
-  const run = () => {
-    fetch(trackUrl, { priority: 'low' } as RequestInit).catch(() => {
-      // Best-effort only — a failed prefetch just means we fetch on demand instead.
-    })
-  }
-
-  const w = window as typeof window & { requestIdleCallback?: (cb: () => void) => number }
-  if (typeof w.requestIdleCallback === 'function') {
-    w.requestIdleCallback(run)
-  } else {
-    setTimeout(run, 2000)
-  }
+/**
+ * Starts the HTTP fetch without playing. Call on mount so autoplay unlock
+ * (or the mute toggle) isn't paying the download cost on the critical path.
+ */
+export function warmSoundtrack() {
+  if (typeof window === 'undefined') return
+  const el = getAudio()
+  // load() is a no-op once the browser already has enough buffered data.
+  el.load()
 }
 
 export async function startSoundtrack() {

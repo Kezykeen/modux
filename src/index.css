@@ -37,7 +37,8 @@
   --animate-spin-slow: spin 12s linear infinite;
   --animate-shimmer: shimmer 2.2s linear infinite;
   --animate-marquee: marquee 22s linear infinite;
-  --animate-dash: dash 1.4s linear infinite;
+  --animate-surge: surge 1.15s linear infinite;
+  --animate-arc-impact: arc-impact 1.15s ease-out infinite;
   --animate-in-up: in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -81,9 +82,30 @@
   }
 }
 
-@keyframes dash {
+/* Charge travelling along a connector line, from the card toward the avatar. */
+@keyframes surge {
+  from {
+    stroke-dashoffset: 0;
+  }
   to {
-    stroke-dashoffset: -24;
+    stroke-dashoffset: -100;
+  }
+}
+
+/* Fires on the same 1.15s cycle as the surge, timed to the moment it lands. */
+@keyframes arc-impact {
+  0%,
+  70% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  84% {
+    transform: scale(1.9);
+    filter: brightness(1.7);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
   }
 }
 
@@ -140,6 +162,20 @@
 
 html {
   color-scheme: dark;
+}
+
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+a[href],
+select,
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
 body {

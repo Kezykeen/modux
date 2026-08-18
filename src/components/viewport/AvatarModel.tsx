@@ -1,162 +1,354 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
-import { CATALOG } from '../../data/catalog'
-import { useBuild } from '../../state/BuildContext'
-import type { CategoryId } from '../../types'
+import { Suspense, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useGLTF, useTexture } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import { CATALOG, BODY_ASSET_PATH } from "../../data/catalog";
+import { useBuild, useHover } from "../../state/BuildContext";
+import { type CatalogItem, type CategoryId } from "../../types";
+import {
+  BURST_DURATION,
+  TRACE_DURATION,
+  getTraceGeometry,
+  hasTraceGeometry,
+} from "./assemblyTrace";
+import {
+  getPreparedAsset,
+  getTraceMaterials,
+  markAssetMounted,
+  resetTraceMaterials,
+} from "./assetCache";
+import { fireAssemblyBurstSfx, startAssemblySfx } from "../../audio/assemblySfx";
+import {
+  ALL_TEXTURE_URLS,
+  ASSET_TEXTURES,
+  textureUrlDict,
+  type LoadedTexturesByUrl,
+} from "./assetTextures";
 
-const DEFAULT_COLOR = '#413A52'
-const SKIN_COLOR = '#e8c9a0'
-const HAIR_DEFAULT = '#2a222f'
+const EMPTY_TEXTURES: LoadedTexturesByUrl = {}
 
-function useLerpedMaterial(hex: string, active: boolean) {
-  const targetColor = useMemo(() => new THREE.Color(hex), [hex])
-  const ref = useRef<THREE.Mesh>(null)
-  const emissiveState = useRef(0.12)
-
-  useFrame((_, delta) => {
-    const mesh = ref.current
-    if (!mesh) return
-    const mat = mesh.material as THREE.MeshStandardMaterial
-    mat.color.lerp(targetColor, Math.min(1, delta * 6))
-    const targetEmissive = active ? 0.9 : 0.12
-    emissiveState.current = THREE.MathUtils.lerp(emissiveState.current, targetEmissive, Math.min(1, delta * 6))
-    mat.emissiveIntensity = emissiveState.current
-    const targetScale = active ? 1.06 : 1
-    const s = THREE.MathUtils.lerp(mesh.scale.x, targetScale, Math.min(1, delta * 8))
-    mesh.scale.setScalar(s)
-  })
-
-  return ref
-}
-
-function usePartColor(categoryId: CategoryId, fallback: string) {
-  const { selection, hoveredCategory } = useBuild()
-  const selectedId = selection[categoryId]
-  const item = selectedId ? CATALOG.find((c) => c.id === selectedId) : undefined
-  return {
-    hex: item?.colorFrom ?? fallback,
-    active: hoveredCategory === categoryId,
+function NativeAssetInner({
+  path,
+  highlighted = false,
+  animateIn = false,
+}: {
+  path: string
+  highlighted?: boolean
+  animateIn?: boolean
+}) {
+  const spec = ASSET_TEXTURES[path]
+  if (!spec) {
+    return (
+      <NativeAssetModel
+        path={path}
+        highlighted={highlighted}
+        animateIn={animateIn}
+        spec={undefined}
+        textures={EMPTY_TEXTURES}
+      />
+    )
   }
+
+  return (
+    <NativeAssetTextured
+      path={path}
+      highlighted={highlighted}
+      animateIn={animateIn}
+      spec={spec}
+    />
+  )
 }
 
-function Capsule({
-  categoryId,
-  fallback,
-  radius,
-  length,
-  position,
-  rotation,
+function NativeAssetTextured({
+  path,
+  highlighted,
+  animateIn,
+  spec,
 }: {
-  categoryId: CategoryId
-  fallback: string
-  radius: number
-  length: number
-  position: [number, number, number]
-  rotation?: [number, number, number]
+  path: string
+  highlighted: boolean
+  animateIn: boolean
+  spec: NonNullable<(typeof ASSET_TEXTURES)[string]>
 }) {
-  const { hex, active } = usePartColor(categoryId, fallback)
-  const ref = useLerpedMaterial(hex, active)
-
+  const textures = useTexture(textureUrlDict(spec)) as LoadedTexturesByUrl
   return (
-    <mesh ref={ref} position={position} rotation={rotation} castShadow receiveShadow>
-      <capsuleGeometry args={[radius, length, 6, 14]} />
-      <meshStandardMaterial color={hex} emissive={hex} emissiveIntensity={0.12} roughness={0.35} metalness={0.55} />
-    </mesh>
+    <NativeAssetModel
+      path={path}
+      highlighted={highlighted}
+      animateIn={animateIn}
+      spec={spec}
+      textures={textures}
+    />
   )
 }
 
-function Box({
-  categoryId,
-  fallback,
-  size,
-  position,
+function NativeAssetModel({
+  path,
+  highlighted = false,
+  animateIn = false,
+  spec,
+  textures,
 }: {
-  categoryId: CategoryId
-  fallback: string
-  size: [number, number, number]
-  position: [number, number, number]
+  path: string
+  highlighted?: boolean
+  animateIn?: boolean
+  spec: (typeof ASSET_TEXTURES)[string] | undefined
+  textures: LoadedTexturesByUrl
 }) {
-  const { hex, active } = usePartColor(categoryId, fallback)
-  const ref = useLerpedMaterial(hex, active)
+  const { scene } = useGLTF(path)
+  const glow = useRef(0)
+  const lastIntensity = useRef(-1)
+  const assembly = useRef(0)
+  const settled = useRef(!animateIn)
+  const audible = useRef(false)
+  const discharged = useRef(false)
+
+  // Prepared once per asset and reused. Visibility belongs to the assembly
+  // timeline — writing it here on every memo rerun is what made textured
+  // parts vanish on hover and tab changes.
+  const { model, uniforms } = useMemo(
+    () => getPreparedAsset(path, scene, spec, textures),
+    [path, scene, spec, textures],
+  )
+
+  useLayoutEffect(() => {
+    // Hide only on the first paint of an incoming part so the outline can
+    // draw first. Later renders must not touch this — the cache is shared.
+    if (animateIn && !settled.current) model.visible = false
+  }, [animateIn, model])
+
+  useEffect(() => {
+    markAssetMounted(path, true);
+    return () => markAssetMounted(path, false);
+  }, [path]);
+
+  // Extracting the outline walks every mesh, so it is only ever done once per
+  // asset. If the warm-up has already built it we use it on the spot; if not,
+  // it waits a frame rather than blocking the one that applied the item.
+  const [trace, setTrace] = useState<THREE.BufferGeometry | null>(() =>
+    animateIn && hasTraceGeometry(path) ? getTraceGeometry(path, model) : null,
+  );
+  const [traceReady, setTraceReady] = useState(
+    !animateIn || hasTraceGeometry(path),
+  );
+
+  useEffect(() => {
+    if (!animateIn || traceReady) return;
+
+    let cancelled = false;
+    const handle = window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      setTrace(getTraceGeometry(path, model));
+      setTraceReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(handle);
+    };
+  }, [animateIn, traceReady, path, model]);
+
+  const traceMaterials = useMemo(() => {
+    if (!trace) return null;
+    return getTraceMaterials(path, trace.userData.center as THREE.Vector3);
+  }, [trace, path]);
+
+  const traceGroup = useRef<THREE.Group>(null);
+  const shockwaveGroup = useRef<THREE.Group>(null);
+  // Hold the clock until the outline exists, so the charge sound still lines up
+  // with the first visible stroke.
+  const awaitingTrace = animateIn && !traceReady && !settled.current;
+
+  useFrame((state, delta) => {
+    if (settled.current && glow.current === 0 && !highlighted) return
+
+    let burst = 0;
+
+    if (!settled.current && !awaitingTrace) {
+      if (!trace || !traceMaterials) {
+        model.visible = true;
+        settled.current = true;
+      } else {
+        // Sound is started here, not on click, so a slow first frame can't
+        // leave the audio running ahead of the outline.
+        if (assembly.current === 0) {
+          resetTraceMaterials(traceMaterials);
+          audible.current = startAssemblySfx();
+        }
+
+        assembly.current += delta;
+        const elapsed = assembly.current;
+        const { stroke, shockwave } = traceMaterials;
+        stroke.uniforms.uTime.value = state.clock.elapsedTime;
+        shockwave.uniforms.uTime.value = state.clock.elapsedTime;
+
+        if (elapsed < TRACE_DURATION) {
+          const progress = elapsed / TRACE_DURATION;
+          stroke.uniforms.uReveal.value = 1 - Math.pow(1 - progress, 3);
+        } else if (elapsed < TRACE_DURATION + BURST_DURATION) {
+          const discharge = (elapsed - TRACE_DURATION) / BURST_DURATION;
+          const fade = (1 - discharge) * (1 - discharge);
+
+          if (!discharged.current) {
+            discharged.current = true;
+            if (audible.current) fireAssemblyBurstSfx();
+          }
+
+          model.visible = true;
+          stroke.uniforms.uReveal.value = 1;
+          stroke.uniforms.uFlash.value = fade;
+          stroke.uniforms.uOpacity.value = fade;
+          stroke.uniforms.uJitter.value = 0.005 + fade * 0.022;
+
+          shockwave.uniforms.uReveal.value = 1;
+          shockwave.uniforms.uFlash.value = fade;
+          shockwave.uniforms.uOpacity.value = fade * 0.7;
+          if (shockwaveGroup.current) {
+            shockwaveGroup.current.visible = true;
+            shockwaveGroup.current.scale.setScalar(1 + discharge * 0.16);
+          }
+
+          burst = fade * 1.5;
+        } else {
+          model.visible = true;
+          settled.current = true;
+          if (traceGroup.current) traceGroup.current.visible = false;
+        }
+      }
+    }
+
+    const target = highlighted ? 1 : 0;
+    if (target !== 0 || glow.current !== 0) {
+      glow.current = THREE.MathUtils.damp(glow.current, target, 7, delta);
+      if (Math.abs(glow.current - target) < 0.002) glow.current = target;
+    }
+
+    // Slow breathing keeps the highlight alive without drawing attention to itself.
+    const shimmer = 0.86 + Math.sin(state.clock.elapsedTime * 2.4) * 0.14;
+    const intensity = Math.max(glow.current * shimmer, burst);
+    if (intensity !== lastIntensity.current) {
+      for (const uniform of uniforms) uniform.value = intensity;
+      lastIntensity.current = intensity;
+    }
+  });
+
+  const center = trace?.userData.center as THREE.Vector3 | undefined;
 
   return (
-    <mesh ref={ref} position={position} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={hex} emissive={hex} emissiveIntensity={0.12} roughness={0.4} metalness={0.4} />
-    </mesh>
-  )
+    <>
+      <primitive object={model} />
+      {trace && traceMaterials && center ? (
+        <group ref={traceGroup}>
+          <lineSegments
+            geometry={trace}
+            material={traceMaterials.stroke}
+            dispose={null}
+          />
+          {/* Scales about the asset's centre rather than the avatar origin. */}
+          <group ref={shockwaveGroup} position={center} visible={false}>
+            <lineSegments
+              geometry={trace}
+              material={traceMaterials.shockwave}
+              position={[-center.x, -center.y, -center.z]}
+              dispose={null}
+            />
+          </group>
+        </group>
+      ) : null}
+    </>
+  );
 }
 
-function Hat() {
-  const { selection } = useBuild()
-  const item = selection.hats ? CATALOG.find((c) => c.id === selection.hats) : undefined
-  if (!item) return null
+/**
+ * Own Suspense boundary: a newly selected part may briefly suspend on its GLB
+ * or textures. Without this, the parent boundary unmounted the whole avatar
+ * for a frame — which is what made rotation and bobbing look like they paused.
+ */
+function NativeAsset(props: {
+  path: string;
+  highlighted?: boolean;
+  animateIn?: boolean;
+}) {
   return (
-    <group position={[0, 1.93, 0]}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.24, 0.27, 0.16, 20]} />
-        <meshStandardMaterial color={item.colorFrom} emissive={item.colorFrom} emissiveIntensity={0.55} roughness={0.3} metalness={0.6} />
-      </mesh>
-      <mesh position={[0, -0.09, 0.05]} castShadow>
-        <cylinderGeometry args={[0.3, 0.3, 0.04, 20]} />
-        <meshStandardMaterial color={item.colorTo} roughness={0.4} metalness={0.5} />
-      </mesh>
-    </group>
-  )
+    <Suspense fallback={null}>
+      <NativeAssetInner {...props} />
+    </Suspense>
+  );
 }
 
-function Weapon() {
-  const { selection } = useBuild()
-  const item = selection.weapon ? CATALOG.find((c) => c.id === selection.weapon) : undefined
-  const groupRef = useRef<THREE.Group>(null)
+const MemoNativeAsset = memo(NativeAsset);
 
-  useFrame((state) => {
-    if (!groupRef.current) return
-    groupRef.current.rotation.z = -0.5 + Math.sin(state.clock.elapsedTime * 1.4) * 0.03
-  })
+function SelectedSlotAsset({
+  categoryId,
+}: {
+  categoryId: Exclude<CategoryId, 'accessory' | 'weapon'>
+}) {
+  const { selection } = useBuild();
+  const { hoveredCategory } = useHover();
+  const selectedId = selection[categoryId];
+  const item = selectedId
+    ? CATALOG.find((catalogItem) => catalogItem.id === selectedId)
+    : undefined;
 
-  if (!item) return null
+  if (!item) return null;
+  // Keyed by item so swapping a slot remounts and replays the assembly.
   return (
-    <group ref={groupRef} position={[0.42, 0.6, 0.08]} rotation={[0, 0, -0.5]}>
-      <mesh castShadow>
-        <boxGeometry args={[0.05, 0.75, 0.03]} />
-        <meshStandardMaterial color={item.colorFrom} emissive={item.colorFrom} emissiveIntensity={0.8} roughness={0.2} metalness={0.7} />
-      </mesh>
-      <mesh position={[0, -0.42, 0]} castShadow>
-        <boxGeometry args={[0.11, 0.13, 0.04]} />
-        <meshStandardMaterial color={item.colorTo} roughness={0.4} metalness={0.6} />
-      </mesh>
-    </group>
+    <MemoNativeAsset
+      key={item.id}
+      path={item.assetPath}
+      highlighted={hoveredCategory === categoryId}
+      animateIn
+    />
+  );
+}
+
+function SelectedStack({ categoryId }: { categoryId: 'accessory' | 'weapon' }) {
+  const { selection } = useBuild()
+  const { hoveredCategory } = useHover()
+  const equipped = (selection[categoryId] ?? [])
+    .map((id) => CATALOG.find((catalogItem) => catalogItem.id === id))
+    .filter((item): item is CatalogItem => Boolean(item))
+
+  return (
+    <>
+      {equipped.map((item) => (
+        <MemoNativeAsset
+          key={item.id}
+          path={item.assetPath}
+          highlighted={hoveredCategory === categoryId}
+          animateIn
+        />
+      ))}
+    </>
   )
 }
 
 export function AvatarModel() {
-  const groupRef = useRef<THREE.Group>(null)
+  const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
-    if (!groupRef.current) return
-    groupRef.current.position.y = -0.9 + Math.sin(state.clock.elapsedTime * 1.1) * 0.025
-  })
+    if (!groupRef.current) return;
+    groupRef.current.position.y =
+      -0.9 + Math.sin(state.clock.elapsedTime * 1.1) * 0.025;
+  });
 
   return (
     <group ref={groupRef}>
-      <Capsule categoryId="hair" fallback={SKIN_COLOR} radius={0.17} length={0.06} position={[0, 1.58, 0]} />
-      <Capsule categoryId="hair" fallback={HAIR_DEFAULT} radius={0.18} length={0.02} position={[0, 1.72, -0.02]} />
-      <Hat />
-
-      <Capsule categoryId="top" fallback={DEFAULT_COLOR} radius={0.2} length={0.36} position={[0, 1.14, 0]} />
-      <Capsule categoryId="top" fallback={DEFAULT_COLOR} radius={0.068} length={0.38} position={[-0.27, 1.06, 0]} rotation={[0, 0, 0.1]} />
-      <Capsule categoryId="top" fallback={DEFAULT_COLOR} radius={0.068} length={0.38} position={[0.27, 1.06, 0]} rotation={[0, 0, -0.1]} />
-
-      <Capsule categoryId="pants" fallback={DEFAULT_COLOR} radius={0.195} length={0.12} position={[0, 0.78, 0]} />
-      <Capsule categoryId="pants" fallback={DEFAULT_COLOR} radius={0.09} length={0.46} position={[-0.115, 0.38, 0]} />
-      <Capsule categoryId="pants" fallback={DEFAULT_COLOR} radius={0.09} length={0.46} position={[0.115, 0.38, 0]} />
-
-      <Box categoryId="shoes" fallback={DEFAULT_COLOR} size={[0.15, 0.08, 0.24]} position={[-0.115, 0.03, 0.05]} />
-      <Box categoryId="shoes" fallback={DEFAULT_COLOR} size={[0.15, 0.08, 0.24]} position={[0.115, 0.03, 0.05]} />
-
-      <Weapon />
+      <MemoNativeAsset path={BODY_ASSET_PATH} />
+      <SelectedSlotAsset categoryId="shoes" />
+      <SelectedSlotAsset categoryId="pants" />
+      <SelectedSlotAsset categoryId="top" />
+      <SelectedSlotAsset categoryId="hair" />
+      <SelectedStack categoryId="weapon" />
+      <SelectedStack categoryId="accessory" />
     </group>
-  )
+  );
 }
+
+const ASSET_PATHS = [
+  BODY_ASSET_PATH,
+  ...CATALOG.map((item: CatalogItem) => item.assetPath),
+];
+
+ASSET_PATHS.forEach((path) => useGLTF.preload(path));
+ALL_TEXTURE_URLS.forEach((url) => useTexture.preload(url));

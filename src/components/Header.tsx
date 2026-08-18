@@ -11,8 +11,8 @@ export function Header() {
   const { cartCount } = useBuild()
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-abyss/80 backdrop-blur-xl">
-      <div className="flex h-16 w-full items-center justify-between gap-6 px-6">
+    <header className="sticky top-0 z-50 shrink-0 border-b border-white/5 bg-abyss/80 backdrop-blur-xl">
+      <div className="flex h-14 w-full items-center justify-between gap-6 px-6">
         <div className="flex items-center gap-10">
           <a href="#" className="group flex flex-col leading-none select-none">
             <span className="font-display text-xl font-bold tracking-tight text-white">

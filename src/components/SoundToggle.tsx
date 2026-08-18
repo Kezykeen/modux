@@ -48,7 +48,7 @@ export function SoundToggle() {
       </span>
 
       <span className="hidden text-[11px] font-semibold tracking-wide whitespace-nowrap sm:inline">
-        {enabled ? 'Sound On' : 'Sound Off'}
+        {enabled ? 'Music On' : 'Music Off'}
       </span>
     </button>
   )

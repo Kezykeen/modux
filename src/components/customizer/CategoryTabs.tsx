@@ -3,6 +3,7 @@ import { LayoutGrid } from 'lucide-react'
 import { CATEGORIES } from '../../data/catalog'
 import { useBuild, type ActiveCategory } from '../../state/BuildContext'
 import { CATEGORY_ICONS } from '../icons/categoryIcons'
+import { playClickSfx } from '../../audio/uiSfx'
 
 const TABS: { id: ActiveCategory; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -20,8 +21,11 @@ export function CategoryTabs() {
         return (
           <button
             key={tab.id}
-            onClick={() => setActiveCategory(tab.id)}
-            className="relative rounded-lg px-2 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors"
+            onClick={() => {
+              playClickSfx()
+              setActiveCategory(tab.id)
+            }}
+            className="relative rounded-md px-1.5 py-1 text-[11px] font-semibold whitespace-nowrap transition-colors"
           >
             {isActive && (
               <motion.span
