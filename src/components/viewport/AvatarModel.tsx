@@ -18,8 +18,8 @@ import {
   resetTraceMaterials,
 } from "./assetCache";
 import { fireAssemblyBurstSfx, startAssemblySfx } from "../../audio/assemblySfx";
+import { markCriticalAssetReady } from "../../assets/preload";
 import {
-  ALL_TEXTURE_URLS,
   ASSET_TEXTURES,
   textureUrlDict,
   type LoadedTexturesByUrl,
@@ -119,6 +119,7 @@ function NativeAssetModel({
 
   useEffect(() => {
     markAssetMounted(path, true);
+    if (settled.current) markCriticalAssetReady(path)
     return () => markAssetMounted(path, false);
   }, [path]);
 
@@ -168,6 +169,7 @@ function NativeAssetModel({
       if (!trace || !traceMaterials) {
         model.visible = true;
         settled.current = true;
+        markCriticalAssetReady(path);
       } else {
         // Sound is started here, not on click, so a slow first frame can't
         // leave the audio running ahead of the outline.
@@ -212,6 +214,7 @@ function NativeAssetModel({
         } else {
           model.visible = true;
           settled.current = true;
+          markCriticalAssetReady(path);
           if (traceGroup.current) traceGroup.current.visible = false;
         }
       }
@@ -344,11 +347,3 @@ export function AvatarModel() {
     </group>
   );
 }
-
-const ASSET_PATHS = [
-  BODY_ASSET_PATH,
-  ...CATALOG.map((item: CatalogItem) => item.assetPath),
-];
-
-ASSET_PATHS.forEach((path) => useGLTF.preload(path));
-ALL_TEXTURE_URLS.forEach((url) => useTexture.preload(url));

@@ -8,12 +8,15 @@ import { Suspense, useEffect, useState } from 'react'
 import { useGLTF, useTexture } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { CATALOG, BODY_ASSET_PATH } from '../../data/catalog'
+import { CATALOG } from '../../data/catalog'
+import { CRITICAL_GLB_PATHS, whenDefaultAvatarReady } from '../../assets/preload'
 import { ASSET_TEXTURES, textureUrlDict, type LoadedTexturesByUrl } from './assetTextures'
 import { getPreparedAsset, getTraceMaterials, isAssetMounted } from './assetCache'
 import { getTraceGeometry } from './assemblyTrace'
 
-const WARM_PATHS = [...new Set([BODY_ASSET_PATH, ...CATALOG.map((item) => item.assetPath)])]
+const WARM_PATHS = CATALOG.map((item) => item.assetPath).filter(
+  (path) => !CRITICAL_GLB_PATHS.includes(path),
+)
 
 type IdleWindow = typeof window & {
   requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
@@ -107,7 +110,8 @@ function WarmAssetModel({
 export function AssetWarmup() {
   const [admitted, setAdmitted] = useState<string[]>([])
 
-  // One asset per idle slot, so warming never competes with a frame.
+  // Unused catalog parts wait until the default avatar is on screen so they
+  // never compete with the first download or compile.
   useEffect(() => {
     let cancelled = false
     let index = 0
@@ -121,10 +125,14 @@ export function AssetWarmup() {
       handle = scheduleIdle(admit)
     }
 
-    handle = scheduleIdle(admit)
+    const stopReady = whenDefaultAvatarReady(() => {
+      if (cancelled) return
+      handle = scheduleIdle(admit)
+    })
 
     return () => {
       cancelled = true
+      stopReady()
       cancelIdle(handle)
     }
   }, [])

@@ -18,7 +18,7 @@ export const RARITY_META: Record<Rarity, { label: string; color: string; glow: s
 }
 
 const asset = (path: string) => encodeURI(path)
-const render = (name: string) => encodeURI(`/assets/Renders/${name}.png`)
+const render = (name: string) => encodeURI(`/assets/Renders/${name}.webp`)
 
 let uid = 0
 const item = (

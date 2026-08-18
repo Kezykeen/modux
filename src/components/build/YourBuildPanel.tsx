@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
+import { PreviewImage } from '../PreviewImage'
 import { ShoppingCart, X, ArrowRight, PackageOpen } from 'lucide-react'
 import { useBuild } from '../../state/BuildContext'
 import { CATEGORY_ICONS } from '../icons/categoryIcons'
@@ -50,7 +51,11 @@ export function YourBuildPanel() {
                       }
                     >
                       {item.previewPath ? (
-                        <img src={item.previewPath} alt="" className="h-full w-full object-cover" />
+                        <PreviewImage
+                          src={item.previewPath}
+                          priority
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <Icon className="h-3.5 w-3.5 text-white/85" />
                       )}

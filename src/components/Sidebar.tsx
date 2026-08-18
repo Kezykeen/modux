@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { MagneticButton } from "./MagneticButton";
+import { PreviewImage } from "./PreviewImage";
 
 const NAV = [
   { id: "builder", label: "Avatar Builder", icon: User },
@@ -83,9 +84,10 @@ export function Sidebar() {
           All parts use strong neodymium magnets for secure hold and easy
           customization.
         </p>
-        <img
-          src="/magnetic.png"
+        <PreviewImage
+          src="/magnetic.webp"
           alt="Magnetic System"
+          priority
           className="mb-3 w-full object-contain"
         />
         <MagneticButton className="group relative flex w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-primary-3/40 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary-2 uppercase transition-colors hover:bg-primary/10">

@@ -6,6 +6,7 @@ import { CATEGORY_ICONS } from "../icons/categoryIcons";
 import { playHoverSfx } from "../../audio/uiSfx";
 import { isStackableCategory, type CategoryDef } from "../../types";
 import { connectorCardDelay } from "./connectorIntro";
+import { PreviewImage } from "../PreviewImage";
 
 interface ConnectorPointProps {
   category: CategoryDef;
@@ -109,9 +110,9 @@ export function ConnectorPoint({ category, index }: ConnectorPointProps) {
         {item ? (
           <>
             {item.previewPath ? (
-              <img
+              <PreviewImage
                 src={item.previewPath}
-                alt=""
+                priority
                 className="h-full w-full object-cover"
               />
             ) : (

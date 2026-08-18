@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { PreviewImage } from '../PreviewImage'
 import { Check, Flame } from 'lucide-react'
 import type { CatalogItem } from '../../types'
 import { RARITY_META } from '../../data/catalog'
@@ -36,7 +37,11 @@ export function ItemCard({ item, layout }: ItemCardProps) {
           }
         >
           {item.previewPath ? (
-            <img src={item.previewPath} alt="" className="h-full w-full object-cover" />
+            <PreviewImage
+              src={item.previewPath}
+              priority={selected}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <Icon className="h-3.5 w-3.5 text-white/85" />
           )}
@@ -79,9 +84,9 @@ export function ItemCard({ item, layout }: ItemCardProps) {
         }
       >
         {item.previewPath ? (
-          <img
+          <PreviewImage
             src={item.previewPath}
-            alt=""
+            priority={selected}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
