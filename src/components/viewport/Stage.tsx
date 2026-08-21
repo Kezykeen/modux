@@ -143,7 +143,7 @@ const MAX_PAN_Y = 0.72;
 /** Vertical pan unlocks once the user has zoomed in at least this far (0–1). */
 const PAN_ENABLE_ZOOM = 0.06;
 /** Pixels of vertical drag → world units at full zoom (kept low so it feels as heavy as orbit). */
-const PAN_DRAG_SCALE = 0.00055;
+const PAN_DRAG_SCALE = 0.0018;
 const DEFAULT_POLAR_MIN = Math.PI / 2 - 0.45;
 const DEFAULT_POLAR_MAX = Math.PI / 2 + 0.3;
 
