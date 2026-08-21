@@ -74,7 +74,7 @@ export function ViewportPanel() {
 
       <div
         ref={containerRef}
-        className={`relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/8 bg-[#070510] shadow-[inset_0_0_80px_rgba(0,0,0,0.6)] ${
+        className={`relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/8 bg-[#070510] shadow-[inset_0_0_80px_rgba(0,0,0,0.6)] [--connector-inner-stop:71%] ${
           isFullscreen ? "bg-void p-8" : ""
         }`}
       >
@@ -93,7 +93,7 @@ export function ViewportPanel() {
               transition={{ duration: 0.35 }}
               className="absolute inset-0"
             >
-              <Stage ref={stageRef} autoRotate={autoRotate} />
+              <Stage ref={stageRef} autoRotate={autoRotate} overlayRef={containerRef} />
             </motion.div>
           ) : (
             <motion.div

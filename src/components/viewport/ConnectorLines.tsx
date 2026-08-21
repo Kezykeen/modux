@@ -12,10 +12,10 @@ import {
   connectorLineDelay,
 } from './connectorIntro'
 
-/** Card inset (0.75rem) plus card width (5.5rem), so lines start flush with the card. */
-const CARD_EDGE = 'calc(5.5rem + 0.75rem)'
-/** Distance from the far side of the panel. Higher = dots sit farther from the avatar. */
-const INNER_STOP = '71%'
+/** Card inset (0.75rem) plus card width (6rem / w-24), so lines start flush with the card. */
+const CARD_EDGE = 'calc(6rem + 0.75rem)'
+/** Landing stop from the far side; Stage updates --connector-inner-stop as you zoom. */
+const INNER_STOP = 'var(--connector-inner-stop, 71%)'
 
 const FORKS = Array.from({ length: BRANCH_COUNT }, (_, i) => i)
 /** Real lightning re-strikes several times inside one flash; so does this. */

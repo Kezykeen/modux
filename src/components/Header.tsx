@@ -12,8 +12,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 shrink-0 border-b border-white/5 bg-abyss/80 backdrop-blur-xl">
-      <div className="flex h-14 w-full items-center justify-between gap-6 px-6">
-        <div className="flex items-center gap-10">
+      <div className="flex h-14 w-full items-center justify-between gap-4 px-4 sm:gap-6 sm:px-6">
+        <div className="flex min-w-0 items-center gap-6 sm:gap-10">
           <a href="#" className="group flex flex-col leading-none select-none">
             <span className="font-display text-xl font-bold tracking-tight text-white">
               MODU<span className="text-primary-2 transition-colors group-hover:text-pink">-X</span>
@@ -23,7 +23,8 @@ export function Header() {
             </span>
           </a>
 
-          <nav className="hidden items-center gap-1 lg:flex">
+          {/* Full nav at 100% on typical desktops; drops under ~1400 CSS px (e.g. 150% zoom). */}
+          <nav className="hidden items-center gap-1 min-[1401px]:lg:flex">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item}
@@ -45,8 +46,8 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="group relative hidden items-center md:flex">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <label className="group relative hidden items-center min-[1401px]:md:flex">
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-2 transition-colors group-focus-within:text-primary-2" />
             <input
               type="text"
