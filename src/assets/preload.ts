@@ -1,7 +1,8 @@
 import { useGLTF, useTexture } from '@react-three/drei'
-import { BODY_ASSET_PATH, CATALOG, DEFAULT_SELECTION } from '../data/catalog'
-import { ASSET_TEXTURES, ALL_TEXTURE_URLS, collectTextureUrls } from '../components/viewport/assetTextures'
-import type { BuildSelection, CatalogItem } from '../types'
+import { BODY_ASSET_PATH, CATALOG, DEFAULT_SELECTION } from '@/data/catalog'
+// Deep import — avoid `@/features/viewport` barrel (Stage → AssetWarmup → preload cycle).
+import { ASSET_TEXTURES, ALL_TEXTURE_URLS, collectTextureUrls } from '@/features/viewport/assetTextures'
+import type { BuildSelection, CatalogItem } from '@/shared/types'
 
 const MAGNETIC_IMAGE = '/magnetic.webp'
 

@@ -1,0 +1,7 @@
+export {
+  CATALOG,
+  CATEGORIES,
+  DEFAULT_SELECTION,
+  RARITY_META,
+  BODY_ASSET_PATH,
+} from './catalog'

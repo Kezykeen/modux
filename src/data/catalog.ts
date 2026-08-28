@@ -1,4 +1,4 @@
-import type { BuildSelection, CatalogItem, CategoryDef, CategoryId, Rarity } from '../types'
+import type { BuildSelection, CatalogItem, CategoryDef, CategoryId, Rarity } from '@/shared/types'
 
 /** Three per side, ordered head-to-toe so each card sits near the part it edits. */
 export const CATEGORIES: CategoryDef[] = [

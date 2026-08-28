@@ -1,6 +1,6 @@
 // Driven by the assembly animation's own frame loop rather than by the click, so
 // a slow first paint can never desync the audio from the outline it accompanies.
-import { TRACE_DURATION } from '../components/viewport/assemblyTrace'
+import { TRACE_DURATION } from '@/features/viewport'
 import {
   getAudioContext,
   getNoiseBuffer,

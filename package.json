@@ -11,17 +11,22 @@
     "optimize:previews": "node scripts/optimize-previews.mjs"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@react-three/postprocessing": "^3.0.4",
     "clsx": "^2.1.1",
     "gsap": "^3.15.0",
+    "libphonenumber-js": "^1.13.12",
     "lucide-react": "^1.26.0",
     "motion": "^12.42.2",
     "postprocessing": "^6.39.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "three": "^0.185.1"
+    "react-hook-form": "^7.86.0",
+    "react-router-dom": "^7.18.2",
+    "three": "^0.185.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
