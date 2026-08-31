@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react'
 import { rarityTone } from '@/widgets'
 import { useCart } from '../context/CartContext'
 import { PromoCodeField } from '../components/PromoCodeField'
+import { LoadingButton } from '@/shared/components'
 
 export function OrderSummaryPanel({ submitting }: { submitting: boolean }) {
   const {
@@ -18,7 +19,7 @@ export function OrderSummaryPanel({ submitting }: { submitting: boolean }) {
   } = useCart()
 
   return (
-    <aside className="h-fit rounded-2xl border border-white/8 bg-panel p-6 lg:sticky lg:top-20">
+    <aside className="h-fit rounded-2xl border border-white/8 bg-panel p-6 lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+1rem)]">
       <div className="mb-5 flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold tracking-wide text-white uppercase">Order Summary</h2>
         <span className="rounded-full bg-primary-3/20 px-2.5 py-1 text-[10px] font-bold text-primary-2 uppercase">
@@ -82,25 +83,51 @@ export function OrderSummaryPanel({ submitting }: { submitting: boolean }) {
         )}
       </div>
 
-      <button
+      <LoadingButton
         type="submit"
-        disabled={submitting}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-3 py-3.5 text-sm font-bold tracking-wide text-white uppercase shadow-[0_0_28px_rgba(124,58,237,0.45)] transition-all hover:bg-primary hover:shadow-[0_0_36px_rgba(168,85,247,0.55)] disabled:opacity-70"
+        loading={submitting}
+        loadingLabel="Placing Order…"
+        className="mt-6 flex w-full rounded-xl bg-primary-3 py-3.5 text-sm font-bold tracking-wide text-white uppercase shadow-[0_0_28px_rgba(124,58,237,0.45)] transition-all hover:bg-primary hover:shadow-[0_0_36px_rgba(168,85,247,0.55)] max-lg:hidden"
       >
-        {submitting ? 'Placing Order…' : 'Place Order & Cast Charm'}
+        Place Order & Cast Charm
         <ArrowRight className="h-3.5 w-3.5" />
-      </button>
+      </LoadingButton>
 
-      <p className="mt-3 text-center text-[10px] leading-relaxed text-muted-2">
+      <p className="mt-3 text-center text-[10px] leading-relaxed text-muted-2 max-lg:hidden">
         By placing this order you authorize MODUX to charge your payment method and begin custom
         assembly.
       </p>
       <Link
         to="/cart"
-        className="mt-3 block text-center text-xs font-semibold text-muted hover:text-primary-2"
+        className="mt-3 block text-center text-xs font-semibold text-muted hover:text-primary-2 max-lg:hidden"
       >
         Back to bag
       </Link>
     </aside>
+  )
+}
+
+export function MobileCheckoutBar({ submitting, total }: { submitting: boolean; total: number }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-abyss/95 p-4 backdrop-blur-xl pb-[calc(1rem+env(safe-area-inset-bottom,0px))] lg:hidden">
+      <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold tracking-wide text-muted-2 uppercase">Total</p>
+          <p className="font-display text-2xl font-extrabold text-white tabular-nums">
+            ${total.toFixed(2)}
+          </p>
+        </div>
+        <LoadingButton
+          type="submit"
+          form="checkout-form"
+          loading={submitting}
+          loadingLabel="Placing…"
+          className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-3 px-5 py-3 text-sm font-bold tracking-wide text-white uppercase shadow-[0_0_28px_rgba(124,58,237,0.45)] hover:bg-primary"
+        >
+          Place Order
+          <ArrowRight className="h-3.5 w-3.5" />
+        </LoadingButton>
+      </div>
+    </div>
   )
 }

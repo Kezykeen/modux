@@ -73,7 +73,7 @@ export function ViewportPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex shrink-0 items-center justify-between px-0.5">
+      <div className="flex shrink-0 items-center justify-between px-0.5 max-lg:hidden">
         <span className="text-[11px] font-bold tracking-[0.2em] text-muted-2">
           VIEW MODE
         </span>
@@ -85,18 +85,35 @@ export function ViewportPanel() {
             { value: "3d", label: "3D" },
             { value: "2d", label: "2D" },
           ]}
+          className="max-lg:shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
         />
       </div>
 
       <div
         ref={containerRef}
-        className={`relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/8 bg-[#070510] shadow-[inset_0_0_80px_rgba(0,0,0,0.6)] [--connector-inner-stop:71%] ${
+        className={`relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/8 bg-[#070510] shadow-[inset_0_0_80px_rgba(0,0,0,0.6)] [--connector-inner-stop:71%] max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:shadow-[inset_0_0_120px_rgba(0,0,0,0.75),0_0_80px_rgba(124,58,237,0.12)] ${
           isFullscreen ? "bg-void p-8" : ""
         }`}
       >
-        <div className="pointer-events-none absolute top-3 left-4 z-10 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-muted-2/70">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-linear-to-t from-[#070510] via-[#070510]/85 to-transparent max-lg:block min-[1401px]:hidden" />
+
+        <div className="pointer-events-none absolute top-3 left-4 z-10 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-muted-2/70 max-lg:rounded-full max-lg:border max-lg:border-white/8 max-lg:bg-black/30 max-lg:px-2.5 max-lg:py-1 max-lg:backdrop-blur-md">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-2" />
-          MODU-X · LIVE PREVIEW
+          <span className="hidden min-[1401px]:inline">MODU-X · LIVE PREVIEW</span>
+          <span className="min-[1401px]:hidden">MODU-X · LIVE</span>
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-end px-4 pt-3 min-[1401px]:hidden">
+          <SegmentedToggle
+            layoutId="view-mode-mobile"
+            value={viewMode}
+            onChange={handleViewMode}
+            options={[
+              { value: "3d", label: "3D" },
+              { value: "2d", label: "2D" },
+            ]}
+            className="pointer-events-auto shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+          />
         </div>
 
         <AnimatePresence mode="wait">
@@ -129,7 +146,7 @@ export function ViewportPanel() {
           {showRig ? (
             <motion.div
               key="lines"
-              className="pointer-events-none absolute inset-0 z-5"
+              className="pointer-events-none absolute inset-0 z-5 max-lg:hidden"
               initial={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.22 }}
@@ -139,13 +156,44 @@ export function ViewportPanel() {
           ) : null}
           {showRig
             ? CATEGORIES.map((cat, i) => (
-                <ConnectorPoint key={cat.id} category={cat} index={i} />
+                <div key={cat.id} className="max-lg:hidden lg:contents">
+                  <ConnectorPoint category={cat} index={i} />
+                </div>
               ))
             : null}
         </AnimatePresence>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 min-[1401px]:hidden">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/12 bg-abyss/80 px-2 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_0_1px_rgba(168,85,247,0.15)] backdrop-blur-xl">
+            <IconButton
+              label="Reset view"
+              disabled={viewMode === '2d'}
+              onClick={() => stageRef.current?.reset()}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </IconButton>
+            <IconButton
+              label="Toggle auto-rotate"
+              active={autoRotate}
+              disabled={viewMode === '2d'}
+              onClick={() => setAutoRotate((v) => !v)}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${autoRotate ? "animate-spin-slow" : ""}`}
+              />
+            </IconButton>
+            <IconButton label="Fullscreen" onClick={toggleFullscreen}>
+              {isFullscreen ? (
+                <Minimize className="h-4 w-4" />
+              ) : (
+                <Maximize className="h-4 w-4" />
+              )}
+            </IconButton>
+          </div>
+        </div>
       </div>
 
-      <div className="flex shrink-0 items-center justify-between px-0.5">
+      <div className="flex shrink-0 items-center justify-between px-0.5 max-lg:hidden">
         <div className="flex items-center gap-2">
           <IconButton
             label="Reset view"

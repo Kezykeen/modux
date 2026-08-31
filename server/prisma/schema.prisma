@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// —— Better Auth (see https://better-auth.com/docs/adapters/prisma) ——
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  collections Collection[]
+  cart        Cart?
+  orders      Order[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  issuer                String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([issuer, accountId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
+}
+
+// —— Modux domain ——
+
+enum Rarity {
+  common
+  rare
+  epic
+  legendary
+}
+
+enum ShippingMethod {
+  standard
+  express
+}
+
+enum OrderStatus {
+  placed
+  processing
+  shipped
+  delivered
+  cancelled
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  snapshotKey String?
+  partsJson   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("collections")
+}
+
+model Cart {
+  id             String         @id @default(cuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promoCode      String?
+  shippingMethod ShippingMethod @default(express)
+  items          CartItem[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id           String   @id @default(cuid())
+  cartId       String
+  cart         Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  name         String
+  rarity       Rarity
+  price        Decimal  @db.Decimal(10, 2)
+  quantity     Int      @default(1)
+  partCount    Int
+  partNames    Json
+  snapshotKey  String?
+  createdAt    DateTime @default(now())
+
+  @@index([cartId])
+  @@map("cart_items")
+}
+
+model Order {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderNumber    String         @unique
+  status         OrderStatus    @default(placed)
+  shippingMethod ShippingMethod
+  addressJson    Json
+  subtotal       Decimal        @db.Decimal(10, 2)
+  shipping       Decimal        @db.Decimal(10, 2)
+  tax            Decimal        @db.Decimal(10, 2)
+  discount       Decimal        @db.Decimal(10, 2)
+  total          Decimal        @db.Decimal(10, 2)
+  promoCode      String?
+  estDelivery    String
+  placedAt       DateTime       @default(now())
+  items          OrderItem[]
+
+  @@index([userId, placedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String
+  rarity      Rarity
+  price       Decimal @db.Decimal(10, 2)
+  quantity    Int
+  partCount   Int
+  partNames   Json
+  snapshotKey String?
+
+  @@index([orderId])
+  @@map("order_items")
+}

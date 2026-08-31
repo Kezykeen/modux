@@ -8,10 +8,12 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { CATALOG, DEFAULT_SELECTION } from '@/data/catalog'
 import { armAssemblySfx } from '@/audio'
 import { playRemoveSfx } from '@/audio'
 import { isStackableCategory, type BuildSelection, type CategoryId } from '@/shared/types'
+import { normalizeSelection } from '../utils/normalize-selection'
 
 export type ActiveCategory = CategoryId | 'all'
 export type ViewMode = '3d' | '2d'
@@ -28,6 +30,7 @@ interface BuildContextValue {
   buildItems: typeof CATALOG
   buildPrice: number
   cartCount: number
+  loadSelection: (selection: BuildSelection) => void
 }
 
 interface HoverContextValue {
@@ -54,7 +57,13 @@ function stackOf(selection: BuildSelection, categoryId: CategoryId) {
 }
 
 export function BuildProvider({ children }: { children: ReactNode }) {
-  const [selection, setSelection] = useState<BuildSelection>(DEFAULT_SELECTION)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const pendingSelection = (location.state as { selection?: BuildSelection } | null)?.selection
+
+  const [selection, setSelection] = useState<BuildSelection>(
+    pendingSelection ? normalizeSelection(pendingSelection) : DEFAULT_SELECTION,
+  )
   const [hoveredCategory, setHoveredCategory] = useState<CategoryId | null>(null)
   const [activeCategory, setActiveCategory] = useState<ActiveCategory>('all')
   const [viewMode, setViewModeState] = useState<ViewMode>('3d')
@@ -67,6 +76,13 @@ export function BuildProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     viewModeRef.current = viewMode
   }, [viewMode])
+
+  useEffect(() => {
+    const pending = (location.state as { selection?: BuildSelection } | null)?.selection
+    if (!pending) return
+    setSelection(normalizeSelection(pending))
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.key, location.pathname, navigate])
 
   const setViewMode = useCallback((mode: ViewMode) => {
     setViewModeState(mode)
@@ -121,6 +137,10 @@ export function BuildProvider({ children }: { children: ReactNode }) {
     [selection],
   )
 
+  const loadSelection = useCallback((next: BuildSelection) => {
+    setSelection(normalizeSelection(next))
+  }, [])
+
   const buildItems = useMemo(
     () =>
       selectedIds(selection)
@@ -144,6 +164,7 @@ export function BuildProvider({ children }: { children: ReactNode }) {
       buildItems,
       buildPrice,
       cartCount: buildItems.length,
+      loadSelection,
     }),
     [
       selection,
@@ -155,6 +176,7 @@ export function BuildProvider({ children }: { children: ReactNode }) {
       isSelected,
       buildItems,
       buildPrice,
+      loadSelection,
     ],
   )
 

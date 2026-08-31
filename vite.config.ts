@@ -14,6 +14,12 @@ export default defineConfig({
     },
   },
   server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
     watch: {
       usePolling: true,
       interval: 300,

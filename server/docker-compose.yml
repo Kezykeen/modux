@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: modux
+      POSTGRES_PASSWORD: modux
+      POSTGRES_DB: modux
+    ports:
+      - '5432:5432'
+    volumes:
+      - modux_pg_data:/var/lib/postgresql/data
+
+volumes:
+  modux_pg_data:

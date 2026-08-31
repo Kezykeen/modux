@@ -5,9 +5,9 @@ import { FormField, FieldError, antifillProps } from './FormField'
 import { formatCardNumber, formatCvv, formatExpiry } from './formatters'
 import type { CheckoutFormValues, PaymentTab } from './schema'
 
-const TABS: [PaymentTab, string][] = [
-  ['card', 'Credit Card'],
-  ['crypto', 'CrypPay / Web3 Wallet'],
+const TABS: [PaymentTab, string, string][] = [
+  ['card', 'Credit Card', 'Card'],
+  ['crypto', 'CrypPay / Web3 Wallet', 'Web3'],
 ]
 
 export function PaymentFields({
@@ -26,18 +26,19 @@ export function PaymentFields({
   return (
     <>
       <div className="mb-4 grid grid-cols-2 gap-2">
-        {TABS.map(([id, label]) => (
+        {TABS.map(([id, label, shortLabel]) => (
           <button
             key={id}
             type="button"
             onClick={() => onTabChange(id)}
-            className={`rounded-xl border px-3 py-2.5 text-xs font-bold tracking-wide uppercase transition-all ${
+            className={`rounded-xl border px-2 py-2.5 text-[11px] font-bold tracking-wide uppercase transition-all sm:px-3 sm:text-xs ${
               paymentTab === id
                 ? 'border-primary text-primary-2'
                 : 'border-white/8 text-muted hover:text-ink'
             }`}
           >
-            {label}
+            <span className="sm:hidden">{shortLabel}</span>
+            <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </div>

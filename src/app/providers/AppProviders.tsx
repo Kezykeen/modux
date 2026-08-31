@@ -6,6 +6,8 @@ import {
   SnapshotProvider,
   SoundProvider,
 } from '@/features/builder'
+import { ToastViewport } from '@/shared/components'
+import { SessionGate } from './SessionGate'
 
 /**
  * Root composition of app-wide providers.
@@ -17,7 +19,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <CartProvider>
         <BuildProvider>
           <SnapshotProvider>
-            <SoundProvider>{children}</SoundProvider>
+            <SoundProvider>
+              <SessionGate>
+                {children}
+              </SessionGate>
+              <ToastViewport />
+            </SoundProvider>
           </SnapshotProvider>
         </BuildProvider>
       </CartProvider>

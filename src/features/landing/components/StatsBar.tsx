@@ -42,8 +42,8 @@ export function StatsBar() {
 
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-        <div className="flex items-center gap-6">
-          <span className="shrink-0 font-display text-[11px] font-extrabold tracking-[0.22em] text-muted-2 uppercase">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <span className="shrink-0 text-center font-display text-[11px] font-extrabold tracking-[0.22em] text-muted-2 uppercase sm:text-left">
             As Seen In
           </span>
           <PressMarquee />
@@ -53,27 +53,27 @@ export function StatsBar() {
   )
 }
 
+function PressName({ name }: { name: string }) {
+  return (
+    <span className="font-display text-sm font-bold tracking-wide whitespace-nowrap text-muted-2">
+      {name}
+    </span>
+  )
+}
+
 function PressMarquee() {
-  const lane = [...PRESS, ...PRESS]
+  // Repeat enough names so each half of the track is wider than the marquee
+  // viewport (~1100px on desktop). Two identical halves + translateX(-50%) = seamless loop.
+  const half = Array(3).fill(PRESS).flat()
+  const track = [...half, ...half]
 
   return (
-    <div className="min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
-      <div className="flex w-[200%] animate-marquee">
-        {[0, 1].map((copy) => (
-          <div
-            key={copy}
-            className="flex w-1/2 shrink-0 items-center justify-evenly"
-            aria-hidden={copy === 1}
-          >
-            {lane.map((name, i) => (
-              <span
-                key={`${copy}-${name}-${i}`}
-                className="font-display text-sm font-bold tracking-wide text-muted-2 whitespace-nowrap transition-colors hover:text-white"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
+    <div className="w-full min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_5%,black_95%,transparent)]">
+      <div className="flex w-max animate-marquee [animation-duration:36s] sm:[animation-duration:52s]">
+        {track.map((name, i) => (
+          <span key={`${name}-${i}`} className="shrink-0 px-4 sm:px-6">
+            <PressName name={name} />
+          </span>
         ))}
       </div>
     </div>

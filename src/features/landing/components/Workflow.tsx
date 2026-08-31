@@ -71,11 +71,12 @@ function StepCard({
   const y = useTransform(progress, [0, 1], [distance, -distance])
 
   return (
-    <motion.div variants={fadeUp} style={{ y: reduced ? 0 : y }}>
-      <motion.div
-        whileHover={{ y: -6, transition: { duration: 0.25 } }}
-        className="group relative flex h-full flex-col rounded-2xl border border-white/8 bg-panel-2/80 p-6 transition-colors duration-300 hover:border-primary-3/45 hover:shadow-[0_0_40px_rgba(124,58,237,0.16)]"
-      >
+    <motion.div style={{ y: reduced ? 0 : y }}>
+      <motion.div variants={fadeUp}>
+        <motion.div
+          whileHover={{ y: -6, transition: { duration: 0.25 } }}
+          className="group relative flex h-full flex-col rounded-2xl border border-white/8 bg-panel-2/80 p-6 transition-colors duration-300 hover:border-primary-3/45 hover:shadow-[0_0_40px_rgba(124,58,237,0.16)]"
+        >
         <div className="mb-5 flex items-center justify-between">
           <span className="font-display text-3xl font-bold text-primary-2/90">{step.n}</span>
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-primary-2 transition-all duration-300 group-hover:border-primary-3/50 group-hover:bg-primary-3/15 group-hover:shadow-[0_0_16px_rgba(168,85,247,0.35)]">
@@ -84,6 +85,7 @@ function StepCard({
         </div>
         <h3 className="mb-2 text-base font-semibold text-white">{step.title}</h3>
         <p className="text-sm leading-relaxed text-muted">{step.desc}</p>
+        </motion.div>
       </motion.div>
     </motion.div>
   )

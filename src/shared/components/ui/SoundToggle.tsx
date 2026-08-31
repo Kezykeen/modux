@@ -1,6 +1,7 @@
-import { Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { Volume2, VolumeX } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useSound } from '@/features/builder'
+import { Spinner } from './Spinner'
 
 const BAR_HEIGHTS = [
   [3, 10, 5, 8, 3],
@@ -25,7 +26,7 @@ export function SoundToggle() {
       }`}
     >
       {isLoading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Spinner size="sm" />
       ) : enabled ? (
         <Volume2 className="h-4 w-4 transition-transform group-hover:scale-110" />
       ) : (

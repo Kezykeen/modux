@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { PreviewImage } from '@/shared/components'
-import { ShoppingCart, X, ArrowRight, PackageOpen, Check } from 'lucide-react'
+import { PreviewImage, ModuxLoader } from '@/shared/components'
+import { ShoppingCart, X, ArrowRight, PackageOpen } from 'lucide-react'
 import { useBuild } from '../context/BuildContext'
 import { useCart } from '@/features/cart'
 import { useSnapshot } from '../context/SnapshotContext'
@@ -11,6 +11,7 @@ import { useAnimatedNumber } from '@/shared/hooks'
 import { MagneticButton } from '@/shared/components'
 import { isStackableCategory } from '@/shared/types'
 import { playClickSfx } from '@/audio'
+import clsx from 'clsx'
 
 const FALLBACK_SNAPSHOT = '/assets/Renders/Cyber Character.webp'
 
@@ -20,19 +21,19 @@ export function YourBuildPanel() {
   const { addBuild } = useCart()
   const { capture } = useSnapshot()
   const priceDisplay = useAnimatedNumber(buildPrice)
-  const [added, setAdded] = useState(false)
+  const [ordering, setOrdering] = useState(false)
 
   const handleOrder = () => {
-    if (buildItems.length === 0 || added) return
+    if (buildItems.length === 0 || ordering) return
+    setOrdering(true)
     playClickSfx()
+
     const snap = capture() || FALLBACK_SNAPSHOT
-    addBuild({ items: buildItems, snapshot: snap })
-    setAdded(true)
-    window.setTimeout(() => {
-      setAdded(false)
-      navigate('/cart')
-    }, 700)
+    void addBuild({ items: buildItems, snapshot: snap }).finally(() => setOrdering(false))
+    navigate('/cart')
   }
+
+  const isBusy = ordering
 
   return (
     <div className="flex w-full min-w-0 flex-col rounded-xl border border-white/8 bg-panel/60 p-2.5">
@@ -118,20 +119,23 @@ export function YourBuildPanel() {
         <MagneticButton
           strength={8}
           onClick={handleOrder}
-          className="group relative flex w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-r from-primary-3 to-primary py-2 text-[12px] font-bold text-white shadow-[0_4px_20px_rgba(168,85,247,0.35)] transition-shadow hover:shadow-[0_4px_28px_rgba(168,85,247,0.55)]"
+          disabled={buildItems.length === 0 || isBusy}
+          className={clsx(
+            'group relative flex w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-r from-primary-3 to-primary py-2 text-[12px] font-bold text-white shadow-[0_4px_20px_rgba(168,85,247,0.35)] transition-shadow hover:shadow-[0_4px_28px_rgba(168,85,247,0.55)] disabled:cursor-not-allowed disabled:opacity-70',
+          )}
         >
           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
           <AnimatePresence mode="wait" initial={false}>
-            {added ? (
+            {isBusy ? (
               <motion.span
-                key="added"
+                key="adding"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 className="relative z-10 flex items-center gap-1.5"
               >
-                <Check className="h-3.5 w-3.5" />
-                Added to Bag
+                <ModuxLoader size="sm" label="Adding to bag" />
+                Adding…
               </motion.span>
             ) : (
               <motion.span
@@ -142,7 +146,8 @@ export function YourBuildPanel() {
                 className="relative z-10 flex items-center gap-1.5"
               >
                 <ShoppingCart className="h-3.5 w-3.5" />
-                <span>Order Physical Charm</span>
+                <span className="sm:hidden">Add to Bag</span>
+                <span className="hidden sm:inline">Order Physical Charm</span>
                 <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
               </motion.span>
             )}

@@ -6,10 +6,10 @@ import {
   AuthCard,
   AuthShell,
   FieldLabel,
-  SocialButtons,
   TextInput,
 } from '../components/AuthShell'
 import { playClickSfx } from '@/audio'
+import { PrimaryLoadingButton } from '@/shared/components'
 
 export function LoginPage() {
   const { login } = useAuth()
@@ -20,20 +20,10 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const finish = () => {
-    playClickSfx()
-    login({
-      name: email.includes('@') ? email.split('@')[0] : email || 'Alex Vesper',
-      email: email.includes('@') ? email : `${email || 'alex'}@modux.design`,
-    })
-    navigate(from, { replace: true })
-  }
-
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     if (!email.trim() || !password.trim()) {
@@ -41,10 +31,14 @@ export function LoginPage() {
       return
     }
     setSubmitting(true)
-    window.setTimeout(() => {
-      setSubmitting(false)
-      finish()
-    }, 550)
+    const result = await login(email.trim(), password)
+    setSubmitting(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    playClickSfx()
+    navigate(from, { replace: true })
   }
 
   return (
@@ -62,11 +56,12 @@ export function LoginPage() {
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div>
-            <FieldLabel htmlFor="login-email">Email or Username</FieldLabel>
+            <FieldLabel htmlFor="login-email">Email</FieldLabel>
             <TextInput
               id="login-email"
-              autoComplete="username"
-              placeholder="e.g. shadow_ninja"
+              type="email"
+              autoComplete="email"
+              placeholder="e.g. kenjiro@modux.design"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -76,12 +71,12 @@ export function LoginPage() {
             <FieldLabel
               htmlFor="login-password"
               trailing={
-                <button
-                  type="button"
+                <Link
+                  to="/forgot-password"
                   className="text-[11px] font-semibold text-primary-2 hover:text-primary"
                 >
                   Forgot Password?
-                </button>
+                </Link>
               }
             >
               Password
@@ -107,52 +102,24 @@ export function LoginPage() {
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 select-none">
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={remember}
-              onClick={() => setRemember((v) => !v)}
-              className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
-                remember
-                  ? 'border-primary-3 bg-primary-3 text-white'
-                  : 'border-white/20 bg-transparent'
-              }`}
-            >
-              {remember && (
-                <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M1.5 5.2 3.8 7.5 8.5 2.5" />
-                </svg>
-              )}
-            </button>
-            <span className="text-[12px] text-muted">Remember me for 30 days</span>
-          </label>
-
           {error && (
             <p className="text-[12px] text-red-400" role="alert">
               {error}
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-3 py-3.5 text-sm font-bold tracking-wide text-white uppercase shadow-[0_0_28px_rgba(124,58,237,0.45)] transition-all hover:bg-primary disabled:opacity-70"
-          >
-            {submitting ? 'Signing in…' : 'Sign In'}
+          <PrimaryLoadingButton type="submit" loading={submitting} loadingLabel="Signing in…">
+            Sign In
             <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          </PrimaryLoadingButton>
         </form>
 
-        <div className="mt-6 flex flex-col gap-4">
-          <SocialButtons onContinue={finish} />
-          <p className="pt-1 text-center text-[12px] text-muted">
-            Don&apos;t have an account?{' '}
-            <Link to="/signup" state={{ from }} className="font-bold text-primary-2 hover:text-primary">
-              Sign Up
-            </Link>
-          </p>
-        </div>
+        <p className="mt-6 pt-1 text-center text-[12px] text-muted">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" state={{ from }} className="font-bold text-primary-2 hover:text-primary">
+            Sign Up
+          </Link>
+        </p>
       </AuthCard>
     </AuthShell>
   )

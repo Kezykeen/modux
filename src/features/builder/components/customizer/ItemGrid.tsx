@@ -29,7 +29,7 @@ export function ItemGrid() {
   }, [activeCategory, rarity, sort]);
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5">
+    <div className="flex w-full min-w-0 flex-col gap-1.5 max-lg:flex-none lg:min-h-0 lg:flex-1 min-[1401px]:min-h-0 min-[1401px]:flex-1">
       <FilterBar
         rarity={rarity}
         onRarityChange={setRarity}
@@ -39,7 +39,7 @@ export function ItemGrid() {
         onLayoutChange={setLayout}
       />
 
-      <div className="thin-scrollbar scrollbar-none min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="thin-scrollbar scrollbar-none min-w-0 max-lg:overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden min-[1401px]:min-h-0 min-[1401px]:flex-1 min-[1401px]:overflow-y-auto min-[1401px]:overflow-x-hidden">
         <AnimatePresence mode="popLayout">
           {items.length === 0 ? (
             <motion.div
@@ -54,7 +54,7 @@ export function ItemGrid() {
           ) : layout === "grid" ? (
             <motion.div
               key="grid"
-              className="grid w-full grid-cols-3 gap-1.5 pt-0.5"
+              className="grid w-full grid-cols-2 gap-1.5 pt-0.5 sm:grid-cols-3"
             >
               {items.map((item, i) => (
                 <motion.div

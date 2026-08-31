@@ -5,12 +5,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle } from 'lucide-react'
 import { playClickSfx } from '@/audio'
+import { ApiError } from '@/lib/api/client'
 import { useCart } from '../context/CartContext'
 import { SectionCard } from './FormField'
 import { ShippingAddressFields } from './ShippingAddressFields'
 import { ShippingMethodPicker } from './ShippingMethodPicker'
 import { PaymentFields } from './PaymentFields'
-import { OrderSummaryPanel } from './OrderSummaryPanel'
+import { OrderSummaryPanel, MobileCheckoutBar } from './OrderSummaryPanel'
 import {
   checkoutSchema,
   defaultCheckoutValues,
@@ -27,8 +28,9 @@ type Props = {
 
 export function CheckoutForm({ defaultEmail, onPlacingChange }: Props) {
   const navigate = useNavigate()
-  const { shippingMethod, setShippingMethod, placeOrder } = useCart()
+  const { shippingMethod, setShippingMethod, placeOrder, total } = useCart()
   const [paymentDeclined, setPaymentDeclined] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const {
     control,
@@ -46,6 +48,7 @@ export function CheckoutForm({ defaultEmail, onPlacingChange }: Props) {
 
   const onValid = async (values: CheckoutFormValues) => {
     setPaymentDeclined(false)
+    setSubmitError('')
 
     if (isDeclinedCard(values.cardNumber)) {
       setPaymentDeclined(true)
@@ -55,13 +58,17 @@ export function CheckoutForm({ defaultEmail, onPlacingChange }: Props) {
     onPlacingChange?.(true)
     playClickSfx()
 
-    await new Promise<void>((resolve) => {
-      window.setTimeout(() => {
-        placeOrder(toShippingAddress(values))
-        navigate('/order-confirmation', { replace: true })
-        resolve()
-      }, 500)
-    })
+    try {
+      const order = await placeOrder(toShippingAddress(values))
+      navigate(`/order-confirmation/${order.id}`, { replace: true })
+    } catch (err) {
+      onPlacingChange?.(false)
+      if (err instanceof ApiError) {
+        setSubmitError(err.message)
+      } else {
+        setSubmitError('Could not place your order. Please try again.')
+      }
+    }
   }
 
   const switchTab = (tab: PaymentTab) => {
@@ -73,6 +80,18 @@ export function CheckoutForm({ defaultEmail, onPlacingChange }: Props) {
   return (
     <>
       <AnimatePresence>
+        {submitError && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mb-6 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300"
+            role="alert"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {submitError}
+          </motion.div>
+        )}
         {paymentDeclined && (
           <motion.div
             initial={{ opacity: 0, y: -12 }}
@@ -88,9 +107,10 @@ export function CheckoutForm({ defaultEmail, onPlacingChange }: Props) {
       </AnimatePresence>
 
       <motion.form
+        id="checkout-form"
         onSubmit={handleSubmit(onValid)}
         autoComplete="off"
-        className="grid gap-8 lg:grid-cols-[1fr_360px]"
+        className="grid gap-8 pb-28 lg:grid-cols-[1fr_360px] lg:pb-0"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
       >
@@ -118,6 +138,8 @@ export function CheckoutForm({ defaultEmail, onPlacingChange }: Props) {
 
         <OrderSummaryPanel submitting={isSubmitting} />
       </motion.form>
+
+      <MobileCheckoutBar submitting={isSubmitting} total={total} />
     </>
   )
 }

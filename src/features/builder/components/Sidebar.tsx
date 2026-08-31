@@ -7,23 +7,17 @@ import {
   Heart,
   Info,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 import { MagneticButton } from '@/shared/components';
 import { PreviewImage } from '@/shared/components';
+import { CollectionPanel } from './CollectionPanel';
+import { CollectionProgressCard } from './CollectionProgressCard';
 
 const NAV = [
   { id: "builder", label: "Avatar Builder", icon: User },
   { id: "collection", label: "My Collection", icon: Box },
   { id: "saved", label: "Saved Looks", icon: Star },
   { id: "favorites", label: "Favorites", icon: Heart },
-];
-
-const RARITY_BREAKDOWN = [
-  { label: "Common", color: "bg-rarity-common", value: 12 },
-  { label: "Rare", color: "bg-rarity-rare", value: 7 },
-  { label: "Epic", color: "bg-rarity-epic", value: 4 },
-  { label: "Legendary", color: "bg-rarity-legendary", value: 1 },
 ];
 
 export function Sidebar() {
@@ -96,43 +90,13 @@ export function Sidebar() {
         </MagneticButton>
       </div>
 
-      <div
-        className="animate-in-up flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/8 bg-panel/60 p-3.5"
-        style={{ animationDelay: "140ms" }}
-      >
-        <div className="mb-2 flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 text-primary-2" />
-          <h3 className="text-[11px] font-bold tracking-[0.16em] text-ink">
-            COLLECTION PROGRESS
-          </h3>
+      {activeNav === 'collection' ? (
+        <CollectionPanel />
+      ) : (
+        <div className="animate-in-up min-h-0 flex-1" style={{ animationDelay: '140ms' }}>
+          <CollectionProgressCard className="h-full" />
         </div>
-        <div className="mb-1 flex items-baseline justify-between">
-          <span className="text-xl font-bold text-white">24</span>
-          <span className="text-[11px] text-muted-2">/ 120 items</span>
-        </div>
-        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: "20%" }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-            className="h-full rounded-full bg-linear-to-r from-primary-3 via-primary to-pink shadow-[0_0_10px_rgba(168,85,247,0.6)]"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          {RARITY_BREAKDOWN.map((rarity) => (
-            <div
-              key={rarity.label}
-              className="flex items-center gap-2 text-[11px] text-muted"
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${rarity.color}`} />
-              <span className="flex-1">{rarity.label}</span>
-              <span className="font-semibold text-ink/80 tabular-nums">
-                {rarity.value}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </aside>
   );
 }

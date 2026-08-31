@@ -16,7 +16,7 @@ export function CheckoutPage() {
 
   // placeOrder clears the cart — hold the page until confirmation navigation finishes
   if (items.length === 0 && !placing) {
-    return <Navigate to={lastOrder ? '/order-confirmation' : '/cart'} replace />
+    return <Navigate to={lastOrder ? `/order-confirmation/${lastOrder.id}` : '/cart'} replace />
   }
 
   return (

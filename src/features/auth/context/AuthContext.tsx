@@ -3,89 +3,135 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react'
+import { authClient, CLIENT_ORIGIN } from '@/lib/auth/client'
+import { clearCache } from '@/lib/cache/query-cache'
 
 export interface AuthUser {
+  id: string
   name: string
   email: string
+  image?: string | null
 }
+
+type AuthResult = { ok: true } | { ok: false; error: string }
 
 interface AuthContextValue {
   isAuthenticated: boolean
+  isLoading: boolean
   user: AuthUser | null
-  login: (user?: Partial<AuthUser>) => void
-  signUp: (user: AuthUser) => void
-  logout: () => void
+  login: (email: string, password: string) => Promise<AuthResult>
+  signUp: (name: string, email: string, password: string) => Promise<AuthResult>
+  logout: () => Promise<void>
+  requestPasswordReset: (email: string) => Promise<AuthResult>
+  resetPassword: (newPassword: string, token: string) => Promise<AuthResult>
+  refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const AUTH_KEY = 'modux-auth'
-const USER_KEY = 'modux-user'
-
-function readStoredAuth(): boolean {
-  try {
-    return localStorage.getItem(AUTH_KEY) === '1'
-  } catch {
-    return false
+function mapUser(
+  sessionUser: { id: string; name: string; email: string; image?: string | null },
+): AuthUser {
+  return {
+    id: sessionUser.id,
+    name: sessionUser.name,
+    email: sessionUser.email,
+    image: sessionUser.image,
   }
 }
 
-function readUser(): AuthUser | null {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as AuthUser
-  } catch {
-    return null
-  }
+function errorMessage(error: { message?: string } | null | undefined, fallback: string) {
+  return error?.message?.trim() || fallback
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(readStoredAuth)
-  const [user, setUser] = useState<AuthUser | null>(readUser)
+  const { data: session, isPending, refetch } = authClient.useSession()
 
-  const persist = useCallback((value: boolean, nextUser: AuthUser | null) => {
-    setIsAuthenticated(value)
-    setUser(nextUser)
-    try {
-      if (value) {
-        localStorage.setItem(AUTH_KEY, '1')
-        if (nextUser) localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
-      } else {
-        localStorage.removeItem(AUTH_KEY)
-        localStorage.removeItem(USER_KEY)
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [])
+  const user = session?.user ? mapUser(session.user) : null
+  const isAuthenticated = Boolean(user)
+
+  const refreshSession = useCallback(async () => {
+    await refetch()
+  }, [refetch])
 
   const login = useCallback(
-    (partial?: Partial<AuthUser>) => {
-      const next: AuthUser = {
-        name: partial?.name || user?.name || 'Alex Vesper',
-        email: partial?.email || user?.email || 'alex@modux.design',
+    async (email: string, password: string): Promise<AuthResult> => {
+      const { error } = await authClient.signIn.email({ email, password })
+      if (error) {
+        return { ok: false, error: errorMessage(error, 'Sign in failed.') }
       }
-      persist(true, next)
+      await refetch()
+      return { ok: true }
     },
-    [persist, user],
+    [refetch],
   )
 
   const signUp = useCallback(
-    (next: AuthUser) => {
-      persist(true, next)
+    async (name: string, email: string, password: string): Promise<AuthResult> => {
+      const { error } = await authClient.signUp.email({ name, email, password })
+      if (error) {
+        return { ok: false, error: errorMessage(error, 'Sign up failed.') }
+      }
+      await refetch()
+      return { ok: true }
     },
-    [persist],
+    [refetch],
   )
 
-  const logout = useCallback(() => persist(false, null), [persist])
+  const logout = useCallback(async () => {
+    await authClient.signOut()
+    clearCache()
+    await refetch()
+  }, [refetch])
 
-  const value = useMemo(
-    () => ({ isAuthenticated, user, login, signUp, logout }),
-    [isAuthenticated, user, login, signUp, logout],
+  const requestPasswordReset = useCallback(async (email: string): Promise<AuthResult> => {
+    const { error } = await authClient.requestPasswordReset({
+      email,
+      redirectTo: `${CLIENT_ORIGIN}/reset-password`,
+    })
+    if (error) {
+      return { ok: false, error: errorMessage(error, 'Could not send reset email.') }
+    }
+    return { ok: true }
+  }, [])
+
+  const resetPassword = useCallback(
+    async (newPassword: string, token: string): Promise<AuthResult> => {
+      const { error } = await authClient.resetPassword({ newPassword, token })
+      if (error) {
+        return { ok: false, error: errorMessage(error, 'Could not reset password.') }
+      }
+      await refetch()
+      return { ok: true }
+    },
+    [refetch],
+  )
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      isAuthenticated,
+      isLoading: isPending,
+      user,
+      login,
+      signUp,
+      logout,
+      requestPasswordReset,
+      resetPassword,
+      refreshSession,
+    }),
+    [
+      isAuthenticated,
+      isPending,
+      user,
+      login,
+      signUp,
+      logout,
+      requestPasswordReset,
+      resetPassword,
+      refreshSession,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

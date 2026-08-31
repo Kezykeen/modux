@@ -11,6 +11,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { Vector3, type PerspectiveCamera } from "three";
+import { useMediaQuery } from '@/shared/hooks';
 import { AvatarModel } from "./AvatarModel";
 import { AssetWarmup } from "./AssetWarmup";
 import { Platform } from "./Platform";
@@ -50,7 +51,6 @@ const CAMERA_CONFIG = {
   position: [0, AVATAR_CENTER_Y, 3.5] as [number, number, number],
   fov: 30,
 };
-const DPR: [number, number] = [1, 2];
 const GL_CONFIG = { antialias: true, preserveDrawingBuffer: true };
 
 const TARGET = new Vector3();
@@ -325,6 +325,10 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
   { autoRotate, overlayRef },
   ref,
 ) {
+  const isMobile = useMediaQuery('(max-width: 767px)')
+  const dpr: [number, number] = isMobile ? [1, 1.25] : [1, 2]
+  const msaa = isMobile ? 0 : 4
+  const shadowMapSize = isMobile ? 512 : 1024
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   const frameRef = useRef<((preserveOrbit: boolean) => void) | null>(null);
@@ -338,7 +342,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
   }));
 
   return (
-    <Canvas shadows dpr={DPR} camera={CAMERA_CONFIG} gl={GL_CONFIG}>
+    <Canvas shadows dpr={dpr} camera={CAMERA_CONFIG} gl={GL_CONFIG}>
       <SpotlightBackground />
 
       <ambientLight intensity={0.7} />
@@ -346,7 +350,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
         position={[2, 4, 2]}
         intensity={1.1}
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[shadowMapSize, shadowMapSize]}
       />
       <pointLight position={[-2, 1.5, -1.2]} intensity={7} color="#a855f7" />
       <pointLight position={[2, 0.6, 1.4]} intensity={4.5} color="#ec4899" />
@@ -391,7 +395,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
       <CanvasGrabCursor />
 
       {/* Light MSAA softens silhouette stairsteps; bloom still owns the glow look. */}
-      <EffectComposer multisampling={4}>
+      <EffectComposer multisampling={msaa}>
         {/* High threshold so only genuinely emissive pixels bloom — a low one was
             hazing the shoes and the pedestal into the surrounding darkness. */}
         <Bloom

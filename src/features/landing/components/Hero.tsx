@@ -1,6 +1,7 @@
-import { useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useRef, useState, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
+  AnimatePresence,
   motion,
   useMotionTemplate,
   useMotionValue,
@@ -8,50 +9,84 @@ import {
   useScroll,
   useSpring,
   useTransform,
-} from 'motion/react'
-import { ArrowRight } from 'lucide-react'
-import { MagneticButton } from '@/shared/components'
-import { CHARACTER } from '../data'
-import { easeOutExpo, fadeUp, stagger } from '../motion'
+} from "motion/react";
+import { ArrowRight } from "lucide-react";
+import { MagneticButton } from "@/shared/components";
+import { CHARACTER } from "../data";
+import { easeOutExpo, fadeUp, stagger } from "../motion";
 
 function SplitLine({
   text,
   delay = 0,
-  className = '',
+  className = "",
 }: {
-  text: string
-  delay?: number
-  className?: string
+  text: string;
+  delay?: number;
+  className?: string;
 }) {
   return (
     <span className="block overflow-hidden" style={{ perspective: 600 }}>
-      {text.split(' ').map((word, i) => (
+      {text.split(" ").map((word, i) => (
         <motion.span
           key={`${word}-${i}`}
           className={`mr-[0.28em] inline-block origin-bottom ${className}`}
-          initial={{ y: '110%', opacity: 0, rotateX: 50 }}
+          initial={{ y: "110%", opacity: 0, rotateX: 50 }}
           animate={{ y: 0, opacity: 1, rotateX: 0 }}
-          transition={{ delay: delay + i * 0.07, duration: 0.78, ease: easeOutExpo }}
+          transition={{
+            delay: delay + i * 0.07,
+            duration: 0.78,
+            ease: easeOutExpo,
+          }}
         >
           {word}
         </motion.span>
       ))}
     </span>
-  )
+  );
 }
 
 function HeroVisual() {
-  const reduced = useReducedMotion()
-  const ref = useRef<HTMLDivElement>(null)
-  const mx = useMotionValue(0)
-  const my = useMotionValue(0)
-  const sx = useSpring(mx, { stiffness: 140, damping: 18, mass: 0.4 })
-  const sy = useSpring(my, { stiffness: 140, damping: 18, mass: 0.4 })
-  const rotateX = useTransform(sy, [-48, 48], [7, -7])
-  const rotateY = useTransform(sx, [-48, 48], [-9, 9])
-  const glareX = useTransform(sx, [-48, 48], [18, 82])
-  const glareY = useTransform(sy, [-48, 48], [22, 72])
-  const glare = useMotionTemplate`radial-gradient(circle at ${glareX}% ${glareY}%, rgba(255,255,255,0.18), transparent 42%)`
+  const reduced = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [ripples, setRipples] = useState<
+    { id: number; x: number; y: number }[]
+  >([]);
+  const [splash, setSplash] = useState<{ x: number; y: number } | null>(null);
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const sx = useSpring(mx, { stiffness: 140, damping: 18, mass: 0.4 });
+  const sy = useSpring(my, { stiffness: 140, damping: 18, mass: 0.4 });
+  const rotateX = useTransform(sy, [-48, 48], [7, -7]);
+  const rotateY = useTransform(sx, [-48, 48], [-9, 9]);
+  const glareX = useTransform(sx, [-48, 48], [18, 82]);
+  const glareY = useTransform(sy, [-48, 48], [22, 72]);
+  const glare = useMotionTemplate`radial-gradient(circle at ${glareX}% ${glareY}%, rgba(255,255,255,0.18), transparent 42%)`;
+
+  const spawnRipple = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (reduced) return;
+      const el = cardRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * 100;
+      const y = ((e.clientY - r.top) / r.height) * 100;
+      const id = Date.now() + Math.random();
+      setRipples((prev) => [...prev.slice(-5), { id, x, y }]);
+      setSplash({ x, y });
+      window.setTimeout(
+        () =>
+          setSplash((current) =>
+            current?.x === x && current?.y === y ? null : current,
+          ),
+        520,
+      );
+      window.setTimeout(() => {
+        setRipples((prev) => prev.filter((ripple) => ripple.id !== id));
+      }, 1400);
+    },
+    [reduced],
+  );
 
   return (
     <motion.div
@@ -59,18 +94,18 @@ function HeroVisual() {
       className="relative mx-auto aspect-[540/500] w-full max-w-[540px]"
       style={{ perspective: 1100 }}
       onMouseMove={(e) => {
-        const el = ref.current
-        if (!el) return
-        const r = el.getBoundingClientRect()
-        mx.set(((e.clientX - r.left) / r.width - 0.5) * 96)
-        my.set(((e.clientY - r.top) / r.height - 0.5) * 96)
+        const el = ref.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        mx.set(((e.clientX - r.left) / r.width - 0.5) * 96);
+        my.set(((e.clientY - r.top) / r.height - 0.5) * 96);
       }}
       onMouseLeave={() => {
-        mx.set(0)
-        my.set(0)
+        mx.set(0);
+        my.set(0);
       }}
-      initial={{ opacity: 0, scale: 0.88, x: 48, filter: 'blur(12px)' }}
-      animate={{ opacity: 1, scale: 1, x: 0, filter: 'blur(0px)' }}
+      initial={{ opacity: 0, scale: 0.88, x: 48, filter: "blur(12px)" }}
+      animate={{ opacity: 1, scale: 1, x: 0, filter: "blur(0px)" }}
       transition={{ duration: 1.05, delay: 0.18, ease: easeOutExpo }}
     >
       {/* Orbit rings */}
@@ -79,28 +114,79 @@ function HeroVisual() {
         <div className="animate-orbit-rev absolute h-[78%] w-[78%] rounded-full border border-white/8" />
       </div>
 
-      <div className="relative h-full overflow-hidden rounded-[28px] border border-white/10 bg-black">
+      <motion.div
+        ref={cardRef}
+        role="presentation"
+        onPointerDown={spawnRipple}
+        whileTap={reduced ? undefined : { scale: 0.985 }}
+        transition={{ type: "spring", stiffness: 420, damping: 28 }}
+        className="relative h-full cursor-pointer overflow-hidden rounded-[28px] border border-white/10 bg-black"
+      >
         <div
           className="pointer-events-none absolute inset-0 opacity-80"
           style={{
             background:
-              'radial-gradient(ellipse 70% 55% at 50% 38%, rgba(124,58,237,0.38), transparent 58%)',
+              "radial-gradient(ellipse 70% 55% at 50% 38%, rgba(124,58,237,0.38), transparent 58%)",
           }}
         />
         <div className="pointer-events-none absolute inset-0 landing-grid opacity-50" />
 
         {!reduced && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1/2 overflow-hidden opacity-20">
-            <div
-              className="h-24 w-full bg-gradient-to-b from-transparent via-white/40 to-transparent"
-              style={{ animation: 'scan 4.5s linear infinite' }}
-            />
+          <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden opacity-25">
+            <div className="absolute inset-x-0 h-28 bg-gradient-to-b from-transparent via-white/35 to-transparent hero-scan-line" />
           </div>
         )}
 
+        <AnimatePresence>
+          {splash && (
+            <motion.div
+              key={`${splash.x}-${splash.y}`}
+              className="pointer-events-none absolute inset-0 z-[25]"
+              initial={{ opacity: 0.55 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.55, ease: "easeOut" }}
+              style={{
+                background: `radial-gradient(circle at ${splash.x}% ${splash.y}%, rgba(192,132,252,0.28) 0%, rgba(34,211,238,0.12) 22%, transparent 52%)`,
+              }}
+            />
+          )}
+          {ripples.map((ripple) => (
+            <span
+              key={ripple.id}
+              className="pointer-events-none absolute z-30"
+              style={{ left: `${ripple.x}%`, top: `${ripple.y}%` }}
+            >
+              {[0, 1, 2].map((ring) => (
+                <motion.span
+                  key={ring}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary-2/50 bg-[radial-gradient(circle,rgba(168,85,247,0.22)_0%,rgba(34,211,238,0.08)_45%,transparent_70%)]"
+                  initial={{ width: 0, height: 0, opacity: 0.65 }}
+                  animate={{
+                    width: 280 + ring * 90,
+                    height: 280 + ring * 90,
+                    opacity: 0,
+                  }}
+                  transition={{
+                    duration: 1.1 + ring * 0.15,
+                    delay: ring * 0.08,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                />
+              ))}
+              <motion.span
+                className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-2/80 shadow-[0_0_20px_rgba(192,132,252,0.9)]"
+                initial={{ scale: 0, opacity: 1 }}
+                animate={{ scale: 2.2, opacity: 0 }}
+                transition={{ duration: 0.55, ease: "easeOut" }}
+              />
+            </span>
+          ))}
+        </AnimatePresence>
+
         <motion.div
           className="relative flex h-full items-end justify-center px-6 pt-8 pb-2"
-          style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
+          style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
         >
           <motion.div
             className="pointer-events-none absolute inset-0 z-20 mix-blend-soft-light"
@@ -111,75 +197,88 @@ function HeroVisual() {
             alt="MODUX collectible character"
             className="relative z-10 h-[92%] w-auto max-w-[85%] object-contain drop-shadow-[0_24px_80px_rgba(124,58,237,0.55)]"
             animate={reduced ? undefined : { y: [0, -12, 0] }}
-            transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
             draggable={false}
           />
         </motion.div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black via-black/40 to-transparent" />
-      </div>
+      </motion.div>
 
       {/* Floating chips */}
       <motion.span
         className="absolute top-8 -left-3 z-20 hidden rounded-full border border-white/12 bg-black/70 px-3 py-1 text-[10px] font-bold tracking-[0.18em] text-primary-2 uppercase backdrop-blur sm:block"
         animate={reduced ? undefined : { y: [0, -8, 0] }}
-        transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
       >
         Magnetic
       </motion.span>
       <motion.span
         className="absolute top-16 -right-2 z-20 hidden rounded-full border border-white/12 bg-black/70 px-3 py-1 text-[10px] font-bold tracking-[0.18em] text-rarity-legendary uppercase backdrop-blur sm:block"
         animate={reduced ? undefined : { y: [0, 10, 0] }}
-        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+        transition={{
+          duration: 5,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 0.4,
+        }}
       >
         Legendary
       </motion.span>
       <motion.span
         className="absolute bottom-16 -left-2 z-20 hidden rounded-full border border-white/12 bg-black/70 px-3 py-1 text-[10px] font-bold tracking-[0.18em] text-muted uppercase backdrop-blur sm:block"
         animate={reduced ? undefined : { y: [0, -6, 0] }}
-        transition={{ duration: 4.6, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
+        transition={{
+          duration: 4.6,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 0.8,
+        }}
       >
         1:6 Scale
       </motion.span>
     </motion.div>
-  )
+  );
 }
 
 export function Hero() {
-  const navigate = useNavigate()
-  const reduced = useReducedMotion()
-  const sectionRef = useRef<HTMLElement>(null)
+  const navigate = useNavigate();
+  const reduced = useReducedMotion();
+  const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ['start start', 'end start'],
-  })
-  const gridY = useTransform(scrollYProgress, [0, 1], [0, 90])
-  const glowY = useTransform(scrollYProgress, [0, 1], [0, 140])
-  const copyY = useTransform(scrollYProgress, [0, 1], [0, 56])
-  const visualY = useTransform(scrollYProgress, [0, 1], [0, -72])
-  const visualScale = useTransform(scrollYProgress, [0, 1], [1, 0.92])
+    offset: ["start start", "end start"],
+  });
+  const gridY = useTransform(scrollYProgress, [0, 1], [0, 90]);
+  const glowY = useTransform(scrollYProgress, [0, 1], [0, 140]);
+  const copyY = useTransform(scrollYProgress, [0, 1], [0, 56]);
+  const visualY = useTransform(scrollYProgress, [0, 1], [0, -72]);
+  const visualScale = useTransform(scrollYProgress, [0, 1], [1, 0.92]);
 
-  const spotlightX = useMotionValue(70)
-  const spotlightY = useMotionValue(40)
-  const sx = useSpring(spotlightX, { stiffness: 80, damping: 22 })
-  const sy = useSpring(spotlightY, { stiffness: 80, damping: 22 })
-  const spotlight = useMotionTemplate`radial-gradient(540px circle at ${sx}% ${sy}%, rgba(168,85,247,0.16), transparent 42%)`
+  const spotlightX = useMotionValue(70);
+  const spotlightY = useMotionValue(40);
+  const sx = useSpring(spotlightX, { stiffness: 80, damping: 22 });
+  const sy = useSpring(spotlightY, { stiffness: 80, damping: 22 });
+  const spotlight = useMotionTemplate`radial-gradient(540px circle at ${sx}% ${sy}%, rgba(168,85,247,0.16), transparent 42%)`;
 
   return (
     <section
       ref={sectionRef}
       className="relative overflow-hidden bg-[#020103]"
       onMouseMove={(e) => {
-        const r = e.currentTarget.getBoundingClientRect()
-        spotlightX.set(((e.clientX - r.left) / r.width) * 100)
-        spotlightY.set(((e.clientY - r.top) / r.height) * 100)
+        const r = e.currentTarget.getBoundingClientRect();
+        spotlightX.set(((e.clientX - r.left) / r.width) * 100);
+        spotlightY.set(((e.clientY - r.top) / r.height) * 100);
       }}
     >
       <motion.div
         className="pointer-events-none absolute inset-0 landing-grid landing-grid-fade"
         style={{ y: reduced ? 0 : gridY }}
       />
-      <motion.div className="pointer-events-none absolute inset-0" style={{ background: spotlight }} />
+      <motion.div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: spotlight }}
+      />
       <motion.div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_50%_at_72%_42%,rgba(124,58,237,0.28),transparent_58%)]"
         style={{ y: reduced ? 0 : glowY }}
@@ -203,7 +302,9 @@ export function Hero() {
               <span className="absolute inset-0 animate-ping rounded-full bg-primary opacity-60" />
               <span className="relative h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_rgba(168,85,247,0.9)]" />
             </span>
-            <span className="text-[12px] font-semibold tracking-[0.14em] text-white">COHORT 04 NOW LIVE</span>
+            <span className="text-[12px] font-semibold tracking-[0.14em] text-white">
+              COHORT 04 NOW LIVE
+            </span>
           </motion.div>
 
           <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-[3.55rem] lg:leading-[1.08]">
@@ -221,13 +322,14 @@ export function Hero() {
             variants={fadeUp}
             className="max-w-lg text-base leading-7 text-muted sm:text-lg"
           >
-            MODUX lets you build fully custom collectible figures — piece by piece, detail by detail.
-            Design on screen, hold premium physical art in your hands.
+            MODUX lets you build fully custom collectible figures — piece by
+            piece, detail by detail. Design on screen, hold premium physical art
+            in your hands.
           </motion.p>
 
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
             <MagneticButton
-              onClick={() => navigate('/customize')}
+              onClick={() => navigate("/customize")}
               className="btn-sheen inline-flex items-center gap-2 rounded-xl bg-primary-3 px-6 py-3 text-sm font-semibold tracking-wide text-white uppercase shadow-[0_0_32px_rgba(124,58,237,0.5)] transition-colors hover:bg-primary"
             >
               Start Creating
@@ -241,20 +343,22 @@ export function Hero() {
             </Link>
           </motion.div>
 
-          {!reduced && (
+          {/* {!reduced && (
             <motion.p
               variants={fadeUp}
               className="text-[11px] tracking-[0.2em] text-muted-2 uppercase"
             >
               Scroll to assemble
             </motion.p>
-          )}
+          )} */}
         </motion.div>
 
-        <motion.div style={{ y: reduced ? 0 : visualY, scale: reduced ? 1 : visualScale }}>
+        <motion.div
+          style={{ y: reduced ? 0 : visualY, scale: reduced ? 1 : visualScale }}
+        >
           <HeroVisual />
         </motion.div>
       </div>
     </section>
-  )
+  );
 }

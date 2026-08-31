@@ -6,10 +6,10 @@ import {
   AuthCard,
   AuthShell,
   FieldLabel,
-  SocialButtons,
   TextInput,
 } from '../components/AuthShell'
 import { playClickSfx } from '@/audio'
+import { PrimaryLoadingButton } from '@/shared/components'
 
 export function SignupPage() {
   const { signUp } = useAuth()
@@ -26,13 +26,7 @@ export function SignupPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const finish = (nextName: string, nextEmail: string) => {
-    playClickSfx()
-    signUp({ name: nextName, email: nextEmail })
-    navigate(from, { replace: true })
-  }
-
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -43,15 +37,19 @@ export function SignupPage() {
       setError('Passwords do not match.')
       return
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
       return
     }
     setSubmitting(true)
-    window.setTimeout(() => {
-      setSubmitting(false)
-      finish(name.trim(), email.trim())
-    }, 600)
+    const result = await signUp(name.trim(), email.trim(), password)
+    setSubmitting(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    playClickSfx()
+    navigate(from, { replace: true })
   }
 
   return (
@@ -108,6 +106,7 @@ export function SignupPage() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            <p className="mt-1 text-[11px] text-muted-2">At least 8 characters</p>
           </div>
           <div>
             <FieldLabel htmlFor="signup-confirm">Confirm Password</FieldLabel>
@@ -138,27 +137,18 @@ export function SignupPage() {
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-3 py-3.5 text-sm font-bold tracking-wide text-white uppercase shadow-[0_0_28px_rgba(124,58,237,0.45)] transition-all hover:bg-primary disabled:opacity-70"
-          >
-            {submitting ? 'Creating…' : 'Sign Up'}
+          <PrimaryLoadingButton type="submit" loading={submitting} loadingLabel="Creating account…">
+            Sign Up
             <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          </PrimaryLoadingButton>
         </form>
 
-        <div className="mt-6 flex flex-col gap-4">
-          <SocialButtons
-            onContinue={() => finish(name.trim() || 'Kenjiro Sato', email.trim() || 'kenjiro@modux.design')}
-          />
-          <p className="pt-1 text-center text-[13px] text-muted">
-            Already have an account?{' '}
-            <Link to="/login" state={{ from }} className="font-bold text-primary-2 hover:text-primary">
-              Sign In
-            </Link>
-          </p>
-        </div>
+        <p className="mt-6 pt-1 text-center text-[13px] text-muted">
+          Already have an account?{' '}
+          <Link to="/login" state={{ from }} className="font-bold text-primary-2 hover:text-primary">
+            Sign In
+          </Link>
+        </p>
       </AuthCard>
     </AuthShell>
   )

@@ -2,11 +2,31 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import type { CatalogItem, Rarity } from '@/shared/types'
+import { toast } from '@/shared/components'
+import { useAuth } from '@/features/auth/context/AuthContext'
+import { getCart, syncCart } from '@/lib/api/cart'
+import { placeOrder as apiPlaceOrder } from '@/lib/api/orders'
+import { uploadSnapshot } from '@/lib/api/uploads'
+import { cachedQuery, invalidateCache, writeCache } from '@/lib/cache/query-cache'
+import type { CartItemDto, CartItemInput, CartTotalsDto, OrderStatus } from '@/lib/api/types'
+import { FALLBACK_SNAPSHOT, resolveSnapshotUrl } from '@/lib/assets'
+import {
+  clearGuestSnapshots,
+  getGuestSnapshot,
+  removeGuestSnapshot,
+  setGuestSnapshot,
+} from '@/lib/guest-snapshots'
+import { orderDtoToPlaced } from '../utils/order-map'
+import { invalidateOrdersCache } from '@/features/orders/hooks/useOrders'
+
+const CART_CACHE_KEY = 'cart'
 
 export interface CartItem {
   id: string
@@ -16,7 +36,8 @@ export interface CartItem {
   quantity: number
   partCount: number
   partNames: string[]
-  /** JPEG data URL of the customized 3D model at add time. */
+  snapshotKey: string | null
+  /** Browser display URL (API asset URL or guest session preview). */
   snapshot: string
 }
 
@@ -34,7 +55,9 @@ export interface ShippingAddress {
 }
 
 export interface PlacedOrder {
+  id: string
   orderNumber: string
+  status: OrderStatus
   items: CartItem[]
   address: ShippingAddress
   shippingMethod: ShippingMethod
@@ -51,6 +74,9 @@ export interface PlacedOrder {
 interface CartContextValue {
   items: CartItem[]
   itemCount: number
+  isLoading: boolean
+  pendingItemIds: ReadonlySet<string>
+  syncingItemIds: ReadonlySet<string>
   subtotal: number
   promoCode: string | null
   promoApplied: boolean
@@ -60,30 +86,40 @@ interface CartContextValue {
   shippingCost: number
   tax: number
   total: number
-  addBuild: (input: {
-    items: CatalogItem[]
-    snapshot: string
-  }) => void
+  addBuild: (input: { items: CatalogItem[]; snapshot: string }) => Promise<void>
   removeItem: (id: string) => void
   setQuantity: (id: string, quantity: number) => void
   applyPromo: (code: string) => boolean
   clearPromo: () => void
   clearCart: () => void
   lastOrder: PlacedOrder | null
-  placeOrder: (address: ShippingAddress) => PlacedOrder
+  placeOrder: (address: ShippingAddress) => Promise<PlacedOrder>
+  setLastOrder: (order: PlacedOrder | null) => void
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
 
-const CART_KEY = 'modux-cart'
-const PROMO_KEY = 'modux-promo'
-const ORDER_KEY = 'modux-last-order'
+const GUEST_CART_KEY = 'modux-cart'
+const GUEST_PROMO_KEY = 'modux-promo'
+const LEGACY_AUTH_KEY = 'modux-auth'
+const LEGACY_USER_KEY = 'modux-user'
+const LEGACY_ORDER_KEY = 'modux-last-order'
+
 export const VALID_PROMO = 'MODUX2026'
 const PROMO_RATE = 0.1
 const TAX_RATE = 0.08
 const EXPRESS_COST = 4.99
 
-/** Banker’s-friendly cent rounding for display + totals. */
+type GuestCartStored = {
+  id: string
+  name: string
+  rarity: Rarity
+  price: number
+  quantity: number
+  partCount: number
+  partNames: string[]
+}
+
 function money(n: number) {
   return Math.round(n * 100) / 100
 }
@@ -110,199 +146,459 @@ function highestRarity(items: CatalogItem[]): Rarity {
 }
 
 function nameForBuild(rarity: Rarity, seed: number) {
-  const pool = BUILD_NAMES[rarity]
-  return pool[seed % pool.length]
+  return BUILD_NAMES[rarity][seed % BUILD_NAMES[rarity].length]
 }
 
-function readCart(): CartItem[] {
+function cartItemFromDto(dto: CartItemDto): CartItem {
+  return {
+    id: dto.id,
+    name: dto.name,
+    rarity: dto.rarity,
+    price: dto.price,
+    quantity: dto.quantity,
+    partCount: dto.partCount,
+    partNames: dto.partNames,
+    snapshotKey: dto.snapshotKey,
+    snapshot: resolveSnapshotUrl(dto.snapshotUrl),
+  }
+}
+
+function readGuestCart(): CartItem[] {
   try {
-    const raw = localStorage.getItem(CART_KEY)
+    const raw = localStorage.getItem(GUEST_CART_KEY)
     if (!raw) return []
-    const parsed = JSON.parse(raw) as CartItem[]
-    return Array.isArray(parsed) ? parsed : []
+    const parsed = JSON.parse(raw) as GuestCartStored[]
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => ({
+      ...item,
+      snapshotKey: null,
+      snapshot: getGuestSnapshot(item.id) ?? FALLBACK_SNAPSHOT,
+    }))
   } catch {
     return []
   }
 }
 
-function readPromo(): string | null {
+function readGuestPromo(): string | null {
   try {
-    const code = localStorage.getItem(PROMO_KEY)
+    const code = localStorage.getItem(GUEST_PROMO_KEY)
     return code === VALID_PROMO ? code : null
   } catch {
     return null
   }
 }
 
-function readLastOrder(): PlacedOrder | null {
+function persistGuestCart(items: CartItem[]) {
   try {
-    const raw = localStorage.getItem(ORDER_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as PlacedOrder
+    const lean: GuestCartStored[] = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      rarity: item.rarity,
+      price: item.price,
+      quantity: item.quantity,
+      partCount: item.partCount,
+      partNames: item.partNames,
+    }))
+    localStorage.setItem(GUEST_CART_KEY, JSON.stringify(lean))
   } catch {
-    return null
+    /* quota */
   }
 }
 
-function estDeliveryDate(method: ShippingMethod) {
-  const days = method === 'express' ? 3 : 7
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+function persistGuestPromo(code: string | null) {
+  try {
+    if (code) localStorage.setItem(GUEST_PROMO_KEY, code)
+    else localStorage.removeItem(GUEST_PROMO_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearLegacyAuthStorage() {
+  try {
+    localStorage.removeItem(LEGACY_AUTH_KEY)
+    localStorage.removeItem(LEGACY_USER_KEY)
+    localStorage.removeItem(LEGACY_ORDER_KEY)
+    localStorage.removeItem('modux-snapshots')
+  } catch {
+    /* ignore */
+  }
+}
+
+function computeLocalTotals(
+  items: CartItem[],
+  shippingMethod: ShippingMethod,
+  promoCode: string | null,
+): CartTotalsDto {
+  const subtotal = money(items.reduce((sum, i) => sum + i.price * i.quantity, 0))
+  const promoApplied = promoCode === VALID_PROMO
+  const discount = promoApplied ? money(subtotal * PROMO_RATE) : 0
+  const shipping = shippingMethod === 'express' ? EXPRESS_COST : 0
+  const taxable = money(Math.max(0, subtotal - discount))
+  const tax = money(taxable * TAX_RATE)
+  const total = money(taxable + shipping + tax)
+  return { subtotal, discount, shipping, tax, total, promoApplied }
+}
+
+function toSyncItems(items: CartItem[]): CartItemInput[] {
+  return items.map((item) => ({
+    name: item.name,
+    rarity: item.rarity,
+    price: item.price,
+    quantity: item.quantity,
+    partCount: item.partCount,
+    partNames: item.partNames,
+    ...(item.snapshotKey ? { snapshotKey: item.snapshotKey } : {}),
+  }))
+}
+
+async function uploadGuestItemSnapshot(item: CartItem): Promise<CartItem> {
+  const dataUrl = getGuestSnapshot(item.id)
+  if (!dataUrl) {
+    return { ...item, snapshotKey: null, snapshot: FALLBACK_SNAPSHOT }
+  }
+  const uploaded = await uploadSnapshot(dataUrl)
+  removeGuestSnapshot(item.id)
+  return {
+    ...item,
+    snapshotKey: uploaded.snapshotKey,
+    snapshot: resolveSnapshotUrl(uploaded.url),
+  }
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(readCart)
-  const [promoCode, setPromoCode] = useState<string | null>(readPromo)
-  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('express')
-  const [lastOrder, setLastOrder] = useState<PlacedOrder | null>(readLastOrder)
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const [items, setItems] = useState<CartItem[]>([])
+  const [promoCode, setPromoCode] = useState<string | null>(null)
+  const [shippingMethod, setShippingMethodState] = useState<ShippingMethod>('express')
+  const [serverTotals, setServerTotals] = useState<CartTotalsDto | null>(null)
+  const [cartLoading, setCartLoading] = useState(true)
+  const [pendingItemIds, setPendingItemIds] = useState<ReadonlySet<string>>(new Set())
+  const [syncingItemIds, setSyncingItemIds] = useState<ReadonlySet<string>>(new Set())
+  const [lastOrder, setLastOrder] = useState<PlacedOrder | null>(null)
   const [nameSeed, setNameSeed] = useState(0)
+  const mergeDoneRef = useRef(false)
+  const itemsRef = useRef(items)
+  const syncingRef = useRef(new Set<string>())
+  const pendingRef = useRef(new Set<string>())
 
-  const persist = useCallback((next: CartItem[]) => {
-    setItems(next)
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  const applyServerResponse = useCallback((res: Awaited<ReturnType<typeof syncCart>>) => {
+    setItems(res.items.map(cartItemFromDto))
+    setPromoCode(res.promoCode)
+    setShippingMethodState(res.shippingMethod)
+    setServerTotals(res.totals)
+  }, [])
+
+  const syncAuthenticatedCart = useCallback(
+    async (nextItems: CartItem[], nextPromo: string | null, nextShipping: ShippingMethod) => {
+      const res = await syncCart({
+        items: toSyncItems(nextItems),
+        promoCode: nextPromo,
+        shippingMethod: nextShipping,
+      })
+      writeCache(CART_CACHE_KEY, res)
+      applyServerResponse(res)
+    },
+    [applyServerResponse],
+  )
+
+  const loadGuestState = useCallback(() => {
+    setItems(readGuestCart())
+    setPromoCode(readGuestPromo())
+    setShippingMethodState('express')
+    setServerTotals(null)
+    setCartLoading(false)
+  }, [])
+
+  const mergeGuestIntoServer = useCallback(async () => {
+    const guestItems = readGuestCart()
+    const guestPromo = readGuestPromo()
+
     try {
-      localStorage.setItem(CART_KEY, JSON.stringify(next))
+      const server = await cachedQuery(CART_CACHE_KEY, getCart, 60_000)
+      const uploadedGuest = await Promise.all(guestItems.map(uploadGuestItemSnapshot))
+      clearGuestSnapshots()
+
+      const serverItems = server.items.map(cartItemFromDto)
+      const mergedItems = uploadedGuest.length > 0 ? [...uploadedGuest, ...serverItems] : serverItems
+
+      const res = await syncCart({
+        items: toSyncItems(mergedItems),
+        promoCode: guestPromo ?? server.promoCode,
+        shippingMethod: server.shippingMethod,
+      })
+      writeCache(CART_CACHE_KEY, res)
+      applyServerResponse(res)
+
+      persistGuestCart([])
+      persistGuestPromo(null)
     } catch {
-      /* ignore quota */
+      loadGuestState()
+      toast.error('Could not sync your cart. Showing saved items.')
+    } finally {
+      setCartLoading(false)
     }
+  }, [applyServerResponse, loadGuestState])
+
+  useEffect(() => {
+    clearLegacyAuthStorage()
+  }, [])
+
+  useEffect(() => {
+    if (authLoading) return
+
+    if (!isAuthenticated) {
+      mergeDoneRef.current = false
+      loadGuestState()
+      return
+    }
+
+    if (!mergeDoneRef.current) {
+      mergeDoneRef.current = true
+      setCartLoading(true)
+      mergeGuestIntoServer()
+    }
+  }, [authLoading, isAuthenticated, loadGuestState, mergeGuestIntoServer])
+
+  const persistGuest = useCallback((next: CartItem[], nextPromo: string | null) => {
+    setItems(next)
+    setPromoCode(nextPromo)
+    setServerTotals(null)
+    persistGuestCart(next)
+    persistGuestPromo(nextPromo)
   }, [])
 
   const addBuild = useCallback(
-    ({ items: catalogItems, snapshot }: { items: CatalogItem[]; snapshot: string }) => {
+    async ({ items: catalogItems, snapshot }: { items: CatalogItem[]; snapshot: string }) => {
       if (catalogItems.length === 0) return
+
       const rarity = highestRarity(catalogItems)
       const price = catalogItems.reduce((sum, i) => sum + i.price, 0)
       const id = `build-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const buildName = nameForBuild(rarity, nameSeed)
+      setNameSeed((s) => s + 1)
+
       const item: CartItem = {
         id,
-        name: nameForBuild(rarity, nameSeed),
+        name: buildName,
         rarity,
         price,
         quantity: 1,
         partCount: catalogItems.length,
         partNames: catalogItems.map((i) => i.name),
+        snapshotKey: null,
         snapshot,
       }
-      setNameSeed((s) => s + 1)
-      persist([item, ...items])
+
+      const previousItems = itemsRef.current
+      const next = [item, ...previousItems]
+
+      if (!isAuthenticated) {
+        setGuestSnapshot(id, snapshot)
+        persistGuest(next, promoCode)
+        toast.success(`${buildName} added to your bag`)
+        return
+      }
+
+      setItems(next)
+      pendingRef.current.add(id)
+      setPendingItemIds(new Set(pendingRef.current))
+
+      try {
+        const uploaded = await uploadSnapshot(snapshot)
+        const syncedItem: CartItem = {
+          ...item,
+          snapshotKey: uploaded.snapshotKey,
+          snapshot: resolveSnapshotUrl(uploaded.url),
+        }
+        const syncedNext = [syncedItem, ...previousItems]
+        await syncAuthenticatedCart(syncedNext, promoCode, shippingMethod)
+        toast.success(`${buildName} added to your bag`)
+      } catch {
+        setItems(previousItems)
+        toast.error('Could not add build to your bag. Please try again.')
+        throw new Error('addBuild failed')
+      } finally {
+        pendingRef.current.delete(id)
+        setPendingItemIds(new Set(pendingRef.current))
+      }
     },
-    [items, nameSeed, persist],
+    [nameSeed, isAuthenticated, promoCode, shippingMethod, persistGuest, syncAuthenticatedCart],
   )
 
   const removeItem = useCallback(
     (id: string) => {
-      persist(items.filter((i) => i.id !== id))
+      if (syncingRef.current.has(id) || pendingRef.current.has(id)) return
+
+      const previous = itemsRef.current
+      const next = previous.filter((i) => i.id !== id)
+      removeGuestSnapshot(id)
+
+      if (!isAuthenticated) {
+        persistGuest(next, promoCode)
+        return
+      }
+
+      setItems(next)
+      syncingRef.current.add(id)
+      setSyncingItemIds(new Set(syncingRef.current))
+
+      syncAuthenticatedCart(next, promoCode, shippingMethod)
+        .catch(() => {
+          setItems(previous)
+          toast.error('Could not remove item. Please try again.')
+        })
+        .finally(() => {
+          syncingRef.current.delete(id)
+          setSyncingItemIds(new Set(syncingRef.current))
+        })
     },
-    [items, persist],
+    [isAuthenticated, promoCode, shippingMethod, persistGuest, syncAuthenticatedCart],
   )
 
   const setQuantity = useCallback(
     (id: string, quantity: number) => {
-      if (quantity < 1) {
-        persist(items.filter((i) => i.id !== id))
+      if (syncingRef.current.has(id) || pendingRef.current.has(id)) return
+
+      const previous = itemsRef.current
+      const next =
+        quantity < 1
+          ? previous.filter((i) => i.id !== id)
+          : previous.map((i) => (i.id === id ? { ...i, quantity } : i))
+
+      if (quantity < 1) removeGuestSnapshot(id)
+
+      if (!isAuthenticated) {
+        persistGuest(next, promoCode)
         return
       }
-      persist(items.map((i) => (i.id === id ? { ...i, quantity } : i)))
+
+      setItems(next)
+      syncingRef.current.add(id)
+      setSyncingItemIds(new Set(syncingRef.current))
+
+      syncAuthenticatedCart(next, promoCode, shippingMethod)
+        .catch(() => {
+          setItems(previous)
+          toast.error('Could not update quantity. Please try again.')
+        })
+        .finally(() => {
+          syncingRef.current.delete(id)
+          setSyncingItemIds(new Set(syncingRef.current))
+        })
     },
-    [items, persist],
+    [isAuthenticated, promoCode, shippingMethod, persistGuest, syncAuthenticatedCart],
   )
 
-  const applyPromo = useCallback((code: string) => {
-    const normalized = code.trim().toUpperCase()
-    if (normalized !== VALID_PROMO) return false
-    setPromoCode(normalized)
-    try {
-      localStorage.setItem(PROMO_KEY, normalized)
-    } catch {
-      /* ignore */
-    }
-    return true
-  }, [])
+  const applyPromo = useCallback(
+    (code: string) => {
+      const normalized = code.trim().toUpperCase()
+      if (normalized !== VALID_PROMO) return false
+
+      if (isAuthenticated) {
+        syncAuthenticatedCart(items, normalized, shippingMethod)
+          .then(() => toast.success('Promo code applied — 10% off'))
+          .catch(() => {
+            setPromoCode(normalized)
+            toast.error('Could not apply promo code. Try again.')
+          })
+      } else {
+        persistGuest(items, normalized)
+        toast.success('Promo code applied — 10% off')
+      }
+      return true
+    },
+    [items, isAuthenticated, shippingMethod, persistGuest, syncAuthenticatedCart],
+  )
 
   const clearPromo = useCallback(() => {
-    setPromoCode(null)
+    if (isAuthenticated) {
+      syncAuthenticatedCart(items, null, shippingMethod)
+        .then(() => toast.info('Promo code removed'))
+        .catch(() => {
+          setPromoCode(null)
+          toast.error('Could not remove promo code.')
+        })
+    } else {
+      persistGuest(items, null)
+      toast.info('Promo code removed')
+    }
+  }, [items, isAuthenticated, shippingMethod, persistGuest, syncAuthenticatedCart])
+
+  const clearCart = useCallback(() => {
+    clearGuestSnapshots()
+    if (isAuthenticated) {
+      syncAuthenticatedCart([], null, shippingMethod).catch(() => {
+        setItems([])
+        toast.error('Could not clear cart.')
+      })
+    } else {
+      persistGuest([], null)
+    }
+  }, [isAuthenticated, shippingMethod, persistGuest, syncAuthenticatedCart])
+
+  const setShippingMethod = useCallback(
+    (method: ShippingMethod) => {
+      if (isAuthenticated) {
+        syncAuthenticatedCart(items, promoCode, method).catch(() => {
+          setShippingMethodState(method)
+          toast.error('Could not update shipping method.')
+        })
+      } else {
+        setShippingMethodState(method)
+      }
+    },
+    [items, promoCode, isAuthenticated, syncAuthenticatedCart],
+  )
+
+  const localTotals = useMemo(
+    () => computeLocalTotals(items, shippingMethod, promoCode),
+    [items, shippingMethod, promoCode],
+  )
+
+  const totals = serverTotals ?? localTotals
+
+  const placeOrderFn = useCallback(async (address: ShippingAddress): Promise<PlacedOrder> => {
     try {
-      localStorage.removeItem(PROMO_KEY)
+      const { order } = await apiPlaceOrder(address)
+      const placed = orderDtoToPlaced(order)
+      invalidateCache(CART_CACHE_KEY)
+      invalidateOrdersCache()
+      setLastOrder(placed)
+      setItems([])
+      setPromoCode(null)
+      setServerTotals(null)
+      clearGuestSnapshots()
+      toast.success('Order placed successfully')
+      return placed
     } catch {
-      /* ignore */
+      toast.error('Could not place your order. Please try again.')
+      throw new Error('placeOrder failed')
     }
   }, [])
 
-  const clearCart = useCallback(() => {
-    persist([])
-    clearPromo()
-  }, [persist, clearPromo])
-
-  const subtotal = useMemo(
-    () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-    [items],
-  )
-  const promoApplied = promoCode === VALID_PROMO
-  const discount = promoApplied ? money(subtotal * PROMO_RATE) : 0
-  const shippingCost = shippingMethod === 'express' ? EXPRESS_COST : 0
-  const taxable = money(Math.max(0, subtotal - discount))
-  const tax = money(taxable * TAX_RATE)
-  const total = money(taxable + shippingCost + tax)
-  const itemCount = useMemo(
-    () => items.reduce((sum, i) => sum + i.quantity, 0),
-    [items],
-  )
-
-  const placeOrder = useCallback(
-    (address: ShippingAddress) => {
-      const order: PlacedOrder = {
-        orderNumber: `#MOD-${Math.floor(20000 + Math.random() * 70000)}`,
-        items: items.map((i) => ({ ...i })),
-        address,
-        shippingMethod,
-        subtotal,
-        shipping: shippingCost,
-        tax,
-        discount,
-        total,
-        promoCode,
-        placedAt: new Date().toISOString(),
-        estDelivery: estDeliveryDate(shippingMethod),
-      }
-      setLastOrder(order)
-      try {
-        localStorage.setItem(ORDER_KEY, JSON.stringify(order))
-      } catch {
-        /* ignore */
-      }
-      persist([])
-      return order
-    },
-    [
-      items,
-      shippingMethod,
-      subtotal,
-      shippingCost,
-      tax,
-      discount,
-      total,
-      promoCode,
-      persist,
-    ],
-  )
+  const itemCount = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items])
 
   const value = useMemo<CartContextValue>(
     () => ({
       items,
       itemCount,
-      subtotal,
+      isLoading: authLoading || cartLoading,
+      pendingItemIds,
+      syncingItemIds,
+      subtotal: totals.subtotal,
       promoCode,
-      promoApplied,
-      discount,
+      promoApplied: totals.promoApplied,
+      discount: totals.discount,
       shippingMethod,
       setShippingMethod,
-      shippingCost,
-      tax,
-      total,
+      shippingCost: totals.shipping,
+      tax: totals.tax,
+      total: totals.total,
       addBuild,
       removeItem,
       setQuantity,
@@ -310,19 +606,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clearPromo,
       clearCart,
       lastOrder,
-      placeOrder,
+      placeOrder: placeOrderFn,
+      setLastOrder,
     }),
     [
       items,
       itemCount,
-      subtotal,
+      authLoading,
+      cartLoading,
+      pendingItemIds,
+      syncingItemIds,
+      totals,
       promoCode,
-      promoApplied,
-      discount,
       shippingMethod,
-      shippingCost,
-      tax,
-      total,
+      setShippingMethod,
       addBuild,
       removeItem,
       setQuantity,
@@ -330,7 +627,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clearPromo,
       clearCart,
       lastOrder,
-      placeOrder,
+      placeOrderFn,
     ],
   )
 

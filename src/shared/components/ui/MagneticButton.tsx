@@ -5,10 +5,17 @@ interface MagneticButtonProps {
   children: ReactNode
   className?: string
   strength?: number
+  disabled?: boolean
   onClick?: () => void
 }
 
-export function MagneticButton({ children, className = '', strength = 18, onClick }: MagneticButtonProps) {
+export function MagneticButton({
+  children,
+  className = '',
+  strength = 18,
+  disabled = false,
+  onClick,
+}: MagneticButtonProps) {
   const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
@@ -33,11 +40,13 @@ export function MagneticButton({ children, className = '', strength = 18, onClic
   return (
     <motion.button
       ref={ref}
+      type="button"
+      disabled={disabled}
       onClick={onClick}
-      onMouseMove={handleMove}
+      onMouseMove={disabled ? undefined : handleMove}
       onMouseLeave={handleLeave}
       style={{ x: springX, y: springY }}
-      whileTap={{ scale: 0.94 }}
+      whileTap={disabled ? undefined : { scale: 0.94 }}
       className={className}
     >
       {children}

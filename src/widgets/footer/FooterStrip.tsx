@@ -1,3 +1,4 @@
+import clsx from 'clsx'
 import { Boxes, Gem, Infinity as InfinityIcon, Users2 } from 'lucide-react'
 import { SocialLinks } from './SocialLinks'
 
@@ -16,10 +17,15 @@ const FEATURES = [
   },
 ];
 
-export function FooterStrip() {
+export function FooterStrip({ className }: { className?: string }) {
   return (
-    <footer className="mt-8 flex shrink-0 items-center justify-between gap-4 border-t border-white/6 pt-2 pb-1">
-      <div className="hidden min-w-0 flex-1 items-center gap-5 min-[1401px]:xl:flex">
+    <footer
+      className={clsx(
+        'mt-8 flex shrink-0 items-center justify-between gap-4 border-t border-white/6 pt-2 pb-1',
+        className,
+      )}
+    >
+      <div className="hidden min-w-0 flex-1 items-center gap-5 min-[1401px]:flex">
         {FEATURES.map(({ icon: Icon, title }) => (
           <div key={title} className="group flex min-w-0 items-center gap-2">
             <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-panel-2 transition-all duration-300 group-hover:border-primary-3/50">
@@ -32,7 +38,7 @@ export function FooterStrip() {
         ))}
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-between gap-3 text-[11px] text-muted-2 min-[1401px]:xl:flex-none min-[1401px]:xl:justify-end">
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-3 text-[11px] text-muted-2 min-[1401px]:flex-none min-[1401px]:justify-end">
         <span className="truncate">
           © {new Date().getFullYear()} MODU-X. All rights reserved.
         </span>

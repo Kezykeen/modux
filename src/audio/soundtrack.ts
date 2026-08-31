@@ -18,7 +18,6 @@ function getAudio(): HTMLAudioElement {
     audio.loop = true
     audio.preload = 'auto'
     audio.volume = 0
-    // Decode/transport errors shouldn't crash the app.
     audio.addEventListener('error', () => {
       console.warn('Soundtrack failed to load/play.')
     })
@@ -52,22 +51,55 @@ function fadeTo(el: HTMLAudioElement, target: number, durationMs: number, onDone
   fadeHandle = requestAnimationFrame(step)
 }
 
+export function isSoundtrackPlaying() {
+  if (!audio) return false
+  return !audio.paused && audio.volume > 0.01
+}
+
+export function isSoundtrackAudible() {
+  if (!audio) return false
+  return !audio.paused && audio.volume > TARGET_VOLUME * 0.5
+}
+
 /**
- * Starts the HTTP fetch without playing. Call on mount so autoplay unlock
- * (or the mute toggle) isn't paying the download cost on the critical path.
+ * Starts the HTTP fetch without playing. Never calls load() while playing —
+ * load() resets the element and causes silent UI/state drift.
  */
 export function warmSoundtrack() {
   if (typeof window === 'undefined') return
   const el = getAudio()
-  // load() is a no-op once the browser already has enough buffered data.
+  if (!el.paused) return
+  if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return
   el.load()
 }
 
 export async function startSoundtrack() {
   const el = getAudio()
   cancelFade()
-  await el.play()
-  fadeTo(el, TARGET_VOLUME, FADE_IN_MS)
+  try {
+    await el.play()
+    fadeTo(el, TARGET_VOLUME, FADE_IN_MS)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Resume after navigation without reloading or re-fading from zero. */
+export async function resumeSoundtrack() {
+  const el = getAudio()
+  cancelFade()
+  try {
+    if (el.paused) {
+      await el.play()
+    }
+    if (el.volume < TARGET_VOLUME * 0.85) {
+      fadeTo(el, TARGET_VOLUME, 120)
+    }
+    return !el.paused && el.volume > 0.01
+  } catch {
+    return false
+  }
 }
 
 export function stopSoundtrack() {

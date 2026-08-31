@@ -1,9 +1,15 @@
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { Check, MapPin, Package, Truck } from 'lucide-react'
 import { CommerceLayout, rarityTone } from '@/widgets'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '@/features/auth'
+import { cachedQuery } from '@/lib/cache/query-cache'
+import { getOrder } from '@/lib/api/orders'
+import { orderDtoToPlaced } from '../utils/order-map'
+import type { PlacedOrder } from '../context/CartContext'
+import { OrderConfirmSkeleton } from '@/shared/components'
 
 const STEPS = [
   { id: 'placed', label: 'Order Placed', detail: 'Completed', status: 'completed' as const },
@@ -14,22 +20,51 @@ const STEPS = [
 
 export function OrderConfirmationPage() {
   const navigate = useNavigate()
-  const { lastOrder } = useCart()
+  const { id } = useParams<{ id: string }>()
+  const { lastOrder, setLastOrder } = useCart()
   const { user } = useAuth()
+  const [order, setOrder] = useState<PlacedOrder | null>(
+    lastOrder && (!id || lastOrder.id === id) ? lastOrder : null,
+  )
+  const [loading, setLoading] = useState(Boolean(id) && !order)
 
-  if (!lastOrder) {
+  useEffect(() => {
+    if (!id) return
+    if (lastOrder?.id === id) {
+      setOrder(lastOrder)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    cachedQuery(`order:${id}`, () => getOrder(id), 60_000)
+      .then(({ order: dto }) => {
+        const placed = orderDtoToPlaced(dto)
+        setOrder(placed)
+        setLastOrder(placed)
+      })
+      .catch(() => setOrder(null))
+      .finally(() => setLoading(false))
+  }, [id, lastOrder, setLastOrder])
+
+  if (loading) {
+    return (
+      <CommerceLayout>
+        <OrderConfirmSkeleton />
+      </CommerceLayout>
+    )
+  }
+
+  if (!order) {
     return <Navigate to="/cart" replace />
   }
 
-  const firstName = lastOrder.address.firstName || user?.name?.split(' ')[0] || 'there'
-  const itemCount = lastOrder.items.reduce((n, i) => n + i.quantity, 0)
+  const firstName = order.address.firstName || user?.name?.split(' ')[0] || 'there'
+  const itemCount = order.items.reduce((n, i) => n + i.quantity, 0)
 
   return (
     <CommerceLayout>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
-        {/* Left column */}
         <div className="flex flex-col gap-6">
-          {/* Success hero */}
           <motion.section
             className="flex flex-col items-center gap-6 rounded-3xl border border-white/8 bg-panel p-8"
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
@@ -57,21 +92,9 @@ export function OrderConfirmationPage() {
 
             <div className="flex w-full flex-col divide-y divide-white/8 rounded-xl border border-white/8 bg-panel-3 sm:flex-row sm:divide-x sm:divide-y-0">
               {[
-                {
-                  label: 'Order Number',
-                  value: lastOrder.orderNumber,
-                  tone: 'text-primary-2',
-                },
-                {
-                  label: 'Est. Delivery',
-                  value: lastOrder.estDelivery,
-                  tone: 'text-white',
-                },
-                {
-                  label: 'Shipping Status',
-                  value: 'Processing',
-                  tone: 'text-emerald-400',
-                },
+                { label: 'Order Number', value: order.orderNumber, tone: 'text-primary-2' },
+                { label: 'Est. Delivery', value: order.estDelivery, tone: 'text-white' },
+                { label: 'Shipping Status', value: order.status, tone: 'text-emerald-400 capitalize' },
               ].map((cell, i) => (
                 <motion.div
                   key={cell.label}
@@ -89,7 +112,6 @@ export function OrderConfirmationPage() {
             </div>
           </motion.section>
 
-          {/* Shipment tracker */}
           <motion.section
             className="rounded-[20px] border border-white/8 bg-panel p-6"
             initial={{ opacity: 0, y: 16 }}
@@ -150,12 +172,8 @@ export function OrderConfirmationPage() {
                           className={`h-full rounded-full ${
                             step.status === 'completed' ? 'bg-emerald-500' : 'bg-white/10'
                           }`}
-                          initial={
-                            step.status === 'completed' ? { scaleX: 0 } : undefined
-                          }
-                          animate={
-                            step.status === 'completed' ? { scaleX: 1 } : undefined
-                          }
+                          initial={step.status === 'completed' ? { scaleX: 0 } : undefined}
+                          animate={step.status === 'completed' ? { scaleX: 1 } : undefined}
                           style={{ transformOrigin: 'left' }}
                           transition={{ delay: 0.55, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
                         />
@@ -167,7 +185,6 @@ export function OrderConfirmationPage() {
             </div>
           </motion.section>
 
-          {/* Delivery details */}
           <motion.section
             className="rounded-[20px] border border-white/8 bg-panel p-6"
             initial={{ opacity: 0, y: 16 }}
@@ -189,12 +206,12 @@ export function OrderConfirmationPage() {
                   Shipping Address
                 </p>
                 <p className="text-sm font-bold text-white">
-                  {lastOrder.address.firstName} {lastOrder.address.lastName}
+                  {order.address.firstName} {order.address.lastName}
                 </p>
                 <p className="mt-1 text-[13px] leading-relaxed text-muted">
-                  {lastOrder.address.street}
+                  {order.address.street}
                   <br />
-                  {lastOrder.address.city}, {lastOrder.address.state} {lastOrder.address.zip}
+                  {order.address.city}, {order.address.state} {order.address.zip}
                   <br />
                   United States
                 </p>
@@ -204,12 +221,12 @@ export function OrderConfirmationPage() {
                   Shipping Method
                 </p>
                 <p className="text-sm font-bold text-white">
-                  {lastOrder.shippingMethod === 'express'
+                  {order.shippingMethod === 'express'
                     ? 'Express Holographic Shipping'
                     : 'Standard Delivery'}
                 </p>
                 <p className="mt-1 text-[13px] text-muted">
-                  {lastOrder.shippingMethod === 'express'
+                  {order.shippingMethod === 'express'
                     ? '2 - 3 Business Days (Secured Box)'
                     : '5 - 7 Business Days'}
                 </p>
@@ -222,7 +239,6 @@ export function OrderConfirmationPage() {
           </motion.section>
         </div>
 
-        {/* Order summary */}
         <motion.aside
           className="h-fit rounded-[20px] border border-white/8 bg-panel p-6 lg:sticky lg:top-20"
           initial={{ opacity: 0, x: 20 }}
@@ -239,17 +255,13 @@ export function OrderConfirmationPage() {
           </div>
 
           <ul className="mb-5 space-y-0">
-            {lastOrder.items.map((item) => (
+            {order.items.map((item) => (
               <li
                 key={item.id}
                 className="flex items-center gap-3 border-b border-white/8 py-3 first:pt-0 last:border-b-0"
               >
                 <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-abyss">
-                  <img
-                    src={item.snapshot}
-                    alt={item.name}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={item.snapshot} alt={item.name} className="h-full w-full object-cover" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-bold text-white">{item.name}</p>
@@ -271,27 +283,25 @@ export function OrderConfirmationPage() {
             <div className="flex justify-between">
               <dt>Subtotal</dt>
               <dd className="text-[13px] tabular-nums text-white">
-                ${lastOrder.subtotal.toFixed(2)}
+                ${order.subtotal.toFixed(2)}
               </dd>
             </div>
             <div className="flex justify-between">
               <dt>
-                {lastOrder.shippingMethod === 'express' ? 'Express Shipping' : 'Standard Shipping'}
+                {order.shippingMethod === 'express' ? 'Express Shipping' : 'Standard Shipping'}
               </dt>
               <dd className="text-[13px] tabular-nums text-white">
-                {lastOrder.shipping === 0 ? 'FREE' : `$${lastOrder.shipping.toFixed(2)}`}
+                {order.shipping === 0 ? 'FREE' : `$${order.shipping.toFixed(2)}`}
               </dd>
             </div>
             <div className="flex justify-between">
               <dt>Estimated Tax</dt>
-              <dd className="text-[13px] tabular-nums text-white">
-                ${lastOrder.tax.toFixed(2)}
-              </dd>
+              <dd className="text-[13px] tabular-nums text-white">${order.tax.toFixed(2)}</dd>
             </div>
-            {lastOrder.discount > 0 && (
+            {order.discount > 0 && (
               <div className="flex justify-between text-emerald-400">
                 <dt>Promo Code Discount (10%)</dt>
-                <dd className="text-[13px] tabular-nums">-${lastOrder.discount.toFixed(2)}</dd>
+                <dd className="text-[13px] tabular-nums">-${order.discount.toFixed(2)}</dd>
               </div>
             )}
           </dl>
@@ -304,12 +314,12 @@ export function OrderConfirmationPage() {
                 Grand Total
               </p>
               <p className="font-display text-2xl font-black tabular-nums text-white">
-                ${lastOrder.total.toFixed(2)}
+                ${order.total.toFixed(2)}
               </p>
             </div>
-            {lastOrder.discount > 0 && (
+            {order.discount > 0 && (
               <span className="rounded-md bg-emerald-500/12 px-2 py-1 text-[10px] font-bold text-emerald-400 uppercase">
-                Saved ${lastOrder.discount.toFixed(2)}
+                Saved ${order.discount.toFixed(2)}
               </span>
             )}
           </div>
@@ -319,11 +329,11 @@ export function OrderConfirmationPage() {
           <div className="flex flex-col gap-3">
             <button
               type="button"
-              onClick={() => navigate('/customize')}
+              onClick={() => navigate(`/orders/${order.id}`)}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-3 py-3.5 text-xs font-extrabold tracking-wide text-white uppercase shadow-[0_0_28px_rgba(124,58,237,0.45)] transition-colors hover:bg-primary"
             >
               <MapPin className="h-3.5 w-3.5" />
-              Track My Order
+              View Order Details
             </button>
             <Link
               to="/customize"
