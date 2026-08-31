@@ -8,7 +8,8 @@ const envSchema = z
     DATABASE_URL: z.string().min(1),
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url(),
-    CLIENT_ORIGIN: z.url(),
+    /** Comma-separated allowed frontend origins (CORS + Better Auth). */
+    CLIENT_ORIGIN: z.string().min(1),
     STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     LOCAL_STORAGE_PATH: z.string().default('./data/uploads'),
     S3_BUCKET: z.string().optional(),
@@ -62,6 +63,21 @@ function normalizeProcessEnv(): Record<string, string | undefined> {
   }
 }
 
+function parseClientOrigins(raw: string): string[] {
+  const origins = raw.split(',').map((s) => s.trim()).filter(Boolean)
+  for (const origin of origins) {
+    try {
+      new URL(origin)
+    } catch {
+      throw new Error(`Invalid environment:\nCLIENT_ORIGIN: invalid URL "${origin}"`)
+    }
+  }
+  if (origins.length === 0) {
+    throw new Error('Invalid environment:\nCLIENT_ORIGIN: at least one origin required')
+  }
+  return origins
+}
+
 function loadEnv(): Env {
   const parsed = envSchema.safeParse(normalizeProcessEnv())
   if (!parsed.success) {
@@ -74,3 +90,6 @@ function loadEnv(): Env {
 }
 
 export const env = loadEnv()
+
+/** Comma-separated in CLIENT_ORIGIN — e.g. prod Vercel URL + http://localhost:5173 */
+export const clientOrigins = parseClientOrigins(env.CLIENT_ORIGIN)

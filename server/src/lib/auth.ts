@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
-import { env } from '../config/env.js'
+import { clientOrigins, env } from '../config/env.js'
 import { prisma } from './prisma.js'
 
 export const auth = betterAuth({
@@ -9,7 +9,15 @@ export const auth = betterAuth({
   }),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
-  trustedOrigins: [env.CLIENT_ORIGIN],
+  trustedOrigins: clientOrigins,
+  advanced: {
+    // Frontend (Vercel) and API (Render) are different origins — Lax cookies won't round-trip.
+    defaultCookieAttributes: {
+      sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: env.NODE_ENV === 'production',
+      httpOnly: true,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

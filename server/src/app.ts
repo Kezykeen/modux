@@ -1,7 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { ZodError } from 'zod'
-import { env } from './config/env.js'
+import { clientOrigins, env } from './config/env.js'
 import { HttpError } from './utils/http-error.js'
 import { healthRoutes } from './routes/health.js'
 import { authRoutes } from './routes/auth.js'
@@ -18,7 +18,7 @@ export async function buildApp() {
   })
 
   await app.register(cors, {
-    origin: env.CLIENT_ORIGIN,
+    origin: clientOrigins.length === 1 ? clientOrigins[0]! : clientOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
