@@ -1,5 +1,5 @@
 import { useGLTF, useTexture } from '@react-three/drei'
-import { BODY_ASSET_PATH, CATALOG, DEFAULT_SELECTION } from '@/data/catalog'
+import { BODY_ASSET_PATHS, CATALOG, DEFAULT_SELECTION } from '@/data/catalog'
 // Deep import — avoid `@/features/viewport` barrel (Stage → AssetWarmup → preload cycle).
 import { ASSET_TEXTURES, ALL_TEXTURE_URLS, collectTextureUrls } from '@/features/viewport/assetTextures'
 import type { BuildSelection, CatalogItem } from '@/shared/types'
@@ -17,9 +17,9 @@ function equippedItems(selection: BuildSelection): CatalogItem[] {
     .filter((item): item is CatalogItem => Boolean(item))
 }
 
-/** Body plus the four parts that ship on the default build (~12 MB, not the full catalog). */
+/** Body plus the four parts that ship on the default build. */
 export const CRITICAL_GLB_PATHS = [
-  BODY_ASSET_PATH,
+  ...BODY_ASSET_PATHS,
   ...equippedItems(DEFAULT_SELECTION).map((item) => item.assetPath),
 ]
 

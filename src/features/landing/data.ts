@@ -9,8 +9,8 @@ import {
   Trophy,
 } from 'lucide-react'
 
-export const CHARACTER = '/assets/Renders/Cyber Character.webp'
-export const CHARACTER_ALT = '/assets/Renders/Cyber Moon Character.webp'
+export const CHARACTER = encodeURI('/assets/Renders/Ninja figurine.webp')
+export const CHARACTER_ALT = encodeURI('/assets/Renders/Ninja figurine.webp')
 
 export const STEPS = [
   {

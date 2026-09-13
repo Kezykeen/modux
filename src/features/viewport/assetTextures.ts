@@ -8,65 +8,17 @@ export type TextureSlot = {
 
 /**
  * Loose maps that ship beside the GLBs. Atlas-based parts already embed Atlas
- * and AtlasEmmission at full size, so those files stay as sources of truth
- * inside the GLB. We only bind a PNG when it fills a hole (Black Pants has no
- * normal) or replaces a stub (Cyber Moon variants, the 20KB torso colour).
+ * at full size, so those files stay as sources of truth inside the GLB. We only
+ * bind a PNG when it fills a hole or replaces a stub.
+ *
+ * The current ninja kit embeds base color + normals, so this map is empty until
+ * a part needs an override.
  */
 export type AssetTextureSpec = TextureSlot & {
   byMaterial?: Record<string, TextureSlot>
 }
 
-export const ASSET_TEXTURES: Record<string, AssetTextureSpec> = {
-  [encodeURI('/assets/Body.glb')]: {
-    byMaterial: {
-      Head: { map: encodeURI('/assets/face.png') },
-    },
-  },
-  [encodeURI('/assets/Pants/Black Pants.glb')]: {
-    map: encodeURI('/assets/Pants/Pants_BaseColour.png'),
-    normalMap: encodeURI('/assets/Pants/Pants_Normal.png'),
-  },
-  [encodeURI('/assets/Pants/Cyber Black Pants.glb')]: {
-    byMaterial: {
-      Trousers: {
-        map: encodeURI('/assets/Pants/Pants_BaseColour.png'),
-        normalMap: encodeURI('/assets/Pants/Pants_Normal.png'),
-      },
-    },
-  },
-  [encodeURI('/assets/Pants/Cyber Moon Pants/Cyber Moon Pants.glb')]: {
-    byMaterial: {
-      Trousers: {
-        map: encodeURI('/assets/Pants/Cyber Moon Pants/CyberMoon_BaseColour.png'),
-        normalMap: encodeURI('/assets/Pants/Pants_Normal.png'),
-      },
-    },
-  },
-  [encodeURI('/assets/Top/Techwear Top.glb')]: {
-    byMaterial: {
-      Jacket: {
-        map: encodeURI('/assets/Top/Jacket_BaseColour.png'),
-        normalMap: encodeURI('/assets/Top/Jacket_Normal.png'),
-      },
-      HoodieLogo: {
-        map: encodeURI('/assets/Top/Torso_BaseColour.png'),
-        normalMap: encodeURI('/assets/Top/Torso_Normal.png'),
-      },
-    },
-  },
-  [encodeURI('/assets/Top/Cyber Moon Top/Cyber Moon Top.glb')]: {
-    byMaterial: {
-      Jacket: {
-        map: encodeURI('/assets/Top/Cyber Moon Top/CyberMoon_BaseColour.png'),
-        normalMap: encodeURI('/assets/Top/Jacket_Normal.png'),
-      },
-      HoodieLogo: {
-        map: encodeURI('/assets/Top/Torso_BaseColour.png'),
-        normalMap: encodeURI('/assets/Top/Torso_Normal.png'),
-      },
-    },
-  },
-}
+export const ASSET_TEXTURES: Record<string, AssetTextureSpec> = {}
 
 export function collectTextureUrls(spec?: AssetTextureSpec) {
   if (!spec) return []
@@ -115,6 +67,7 @@ function prepareTexture(texture: THREE.Texture, kind: 'color' | 'data') {
   texture.wrapS = THREE.ClampToEdgeWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
   texture.colorSpace = kind === 'color' ? THREE.SRGBColorSpace : THREE.NoColorSpace
+  texture.anisotropy = Math.max(texture.anisotropy, 8)
   texture.needsUpdate = true
   prepared[PREPARED] = true
   return texture
@@ -132,44 +85,71 @@ export function applyAssetTextures(
   spec: AssetTextureSpec | undefined,
   textures: LoadedTexturesByUrl,
 ) {
-  if (!spec || !(material instanceof THREE.MeshStandardMaterial)) return material
+  if (!(material instanceof THREE.MeshStandardMaterial)) return material
 
-  const slot = spec.byMaterial?.[material.name] ?? spec
-  const map = slot.map ? textures[slot.map] : undefined
-  const normalMap = slot.normalMap ? textures[slot.normalMap] : undefined
-  const emissiveMap = slot.emissiveMap ? textures[slot.emissiveMap] : undefined
+  ensureTangents(mesh)
 
-  if (map) {
-    material.map = prepareTexture(map, 'color')
-  }
-
-  if (normalMap) {
-    material.normalMap = prepareTexture(normalMap, 'data')
+  if (material.normalMap) {
     material.normalScale.set(1, 1)
-
-    const { geometry } = mesh
-    if (
-      geometry instanceof THREE.BufferGeometry &&
-      geometry.index &&
-      geometry.attributes.normal &&
-      geometry.attributes.uv &&
-      !geometry.attributes.tangent
-    ) {
-      geometry.computeTangents()
-    }
   }
 
-  if (emissiveMap) {
-    material.emissiveMap = prepareTexture(emissiveMap, 'color')
-    // emissiveMap is multiplied by emissive; black (the glTF default) hides it.
-    if (material.emissive.r + material.emissive.g + material.emissive.b < 0.01) {
-      material.emissive.set('#ffffff')
+  material.envMapIntensity = 0.35
+
+  if (spec) {
+    const slot = spec.byMaterial?.[material.name] ?? spec
+    const map = slot.map ? textures[slot.map] : undefined
+    const normalMap = slot.normalMap ? textures[slot.normalMap] : undefined
+    const emissiveMap = slot.emissiveMap ? textures[slot.emissiveMap] : undefined
+
+    if (map) {
+      material.map = prepareTexture(map, 'color')
     }
-    if (material.emissiveIntensity < 0.01) {
-      material.emissiveIntensity = 1
+
+    if (normalMap) {
+      material.normalMap = prepareTexture(normalMap, 'data')
+      material.normalScale.set(1, 1)
+    }
+
+    if (emissiveMap) {
+      material.emissiveMap = prepareTexture(emissiveMap, 'color')
+      if (material.emissive.r + material.emissive.g + material.emissive.b < 0.01) {
+        material.emissive.set('#ffffff')
+      }
+      if (material.emissiveIntensity < 0.01) {
+        material.emissiveIntensity = 1
+      }
     }
   }
 
   material.needsUpdate = true
   return material
+}
+
+/**
+ * Path-specific look tweaks that don't need a new export. The shoe albedo is
+ * near-white and stole the scene; we sit it back in the shadows.
+ */
+export function styleKitMaterial(path: string, material: THREE.Material) {
+  if (!(material instanceof THREE.MeshStandardMaterial)) return material
+  if (path.includes('/Shoes/')) {
+    material.color.multiplyScalar(0.38)
+    material.roughness = Math.max(material.roughness, 0.74)
+    material.metalness = Math.min(material.metalness, 0.12)
+    material.envMapIntensity = 0.18
+  }
+  return material
+}
+
+/** Designer GLBs embed normals but omit tangents — compute once per mesh. */
+function ensureTangents(mesh: THREE.Mesh) {
+  const { geometry } = mesh
+  if (
+    geometry instanceof THREE.BufferGeometry &&
+    geometry.index &&
+    geometry.attributes.normal &&
+    geometry.attributes.uv &&
+    !geometry.attributes.tangent
+  ) {
+    geometry.computeTangents()
+  }
 }

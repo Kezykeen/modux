@@ -21,17 +21,17 @@ const POPULAR = [
   {
     name: 'Shadow Ninja',
     items: 8,
-    img: '/assets/Renders/Cyber Character.webp',
+    img: encodeURI('/assets/Renders/Ninja figurine.webp'),
   },
   {
     name: 'Neon Warrior',
     items: 6,
-    img: '/assets/Renders/Cyber Moon Character.webp',
+    img: encodeURI('/assets/Renders/Ninja figurine.webp'),
   },
   {
     name: 'Cyber Ronin',
     items: 9,
-    img: '/assets/Renders/Cyber Character.webp',
+    img: encodeURI('/assets/Renders/Ninja figurine.webp'),
   },
 ]
 

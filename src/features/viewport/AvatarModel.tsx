@@ -2,7 +2,7 @@ import { Suspense, memo, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import { useGLTF, useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { CATALOG, BODY_ASSET_PATH } from '@/data/catalog';
+import { CATALOG, BODY_ASSET_PATHS } from '@/data/catalog';
 import { useBuild, useHover } from '@/features/builder';
 import { type CatalogItem, type CategoryId } from '@/shared/types';
 import {
@@ -24,6 +24,19 @@ import {
   textureUrlDict,
   type LoadedTexturesByUrl,
 } from "./assetTextures";
+
+/**
+ * Designer kit is centimetre-scale. Rest pose sits soles on the pedestal
+ * (top at y = -0.93); the bob only lifts, never sinks.
+ *
+ * The kit is authored with its left-right axis on Z (the two hands straddle Z)
+ * and the face on +X — the mask sits at +X of the head, the sword and shield at
+ * -X. Camera lives on +Z, so a -90° yaw is what turns the face to the viewer.
+ */
+const FIGURINE_SCALE = 7.4
+const FIGURINE_Y = -0.733
+const FIGURINE_BOB = 0.036
+const FIGURINE_ROTATION: [number, number, number] = [0, -Math.PI / 2, 0]
 
 const EMPTY_TEXTURES: LoadedTexturesByUrl = {}
 
@@ -151,7 +164,11 @@ function NativeAssetModel({
 
   const traceMaterials = useMemo(() => {
     if (!trace) return null;
-    return getTraceMaterials(path, trace.userData.center as THREE.Vector3);
+    return getTraceMaterials(
+      path,
+      trace.userData.center as THREE.Vector3,
+      (trace.userData.radius as number | undefined) ?? 0.25,
+    );
   }, [trace, path]);
 
   const traceGroup = useRef<THREE.Group>(null);
@@ -200,7 +217,8 @@ function NativeAssetModel({
           stroke.uniforms.uReveal.value = 1;
           stroke.uniforms.uFlash.value = fade;
           stroke.uniforms.uOpacity.value = fade;
-          stroke.uniforms.uJitter.value = 0.005 + fade * 0.022;
+          const restJitter = (stroke.userData.restJitter as number | undefined) ?? 0.0008;
+          stroke.uniforms.uJitter.value = restJitter + fade * restJitter * 4.5;
 
           shockwave.uniforms.uReveal.value = 1;
           shockwave.uniforms.uFlash.value = fade;
@@ -332,12 +350,14 @@ export function AvatarModel() {
   useFrame((state) => {
     if (!groupRef.current) return;
     groupRef.current.position.y =
-      -0.9 + Math.sin(state.clock.elapsedTime * 1.1) * 0.025;
+      FIGURINE_Y + (Math.sin(state.clock.elapsedTime * 1.1) * 0.5 + 0.5) * FIGURINE_BOB;
   });
 
   return (
-    <group ref={groupRef}>
-      <MemoNativeAsset path={BODY_ASSET_PATH} />
+    <group ref={groupRef} rotation={FIGURINE_ROTATION} scale={FIGURINE_SCALE}>
+      {BODY_ASSET_PATHS.map((path) => (
+        <MemoNativeAsset key={path} path={path} />
+      ))}
       <SelectedSlotAsset categoryId="shoes" />
       <SelectedSlotAsset categoryId="pants" />
       <SelectedSlotAsset categoryId="top" />

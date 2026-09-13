@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, ContactShadows } from "@react-three/drei";
+import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { Vector3, type PerspectiveCamera } from "three";
 import { useMediaQuery } from '@/shared/hooks';
@@ -30,12 +30,10 @@ interface StageProps {
 }
 
 /** World-space extents of the avatar plus its pedestal, measured from the source GLBs. */
-const AVATAR_HEIGHT = 1.6;
-const AVATAR_WIDTH = 1.4;
-const AVATAR_CENTER_Y = -0.22;
-/** Breathing room kept around the avatar so horns and shoes never clip the frame.
- *  Higher = smaller on-screen character at the default (farthest) zoom. */
-const FRAME_MARGIN = 1.4;
+const AVATAR_HEIGHT = 1.72;
+const AVATAR_WIDTH = 1.45;
+const AVATAR_CENTER_Y = -0.16;
+const FRAME_MARGIN = 1.52;
 /** Closest allowed camera distance as a fraction of the framed (starting) distance. */
 const MIN_ZOOM_RATIO = 0.52;
 /** Connector landing stop at framed distance (matches previous INNER_STOP). */
@@ -51,7 +49,16 @@ const CAMERA_CONFIG = {
   position: [0, AVATAR_CENTER_Y, 3.5] as [number, number, number],
   fov: 30,
 };
-const GL_CONFIG = { antialias: true, preserveDrawingBuffer: true };
+/**
+ * No tone mapping on purpose. ACES Filmic desaturates saturated coloured lights
+ * toward white as they approach 1.0, which drained the purple/magenta rim down
+ * to grey — the whole signature of this scene. Linear output keeps the violet.
+ */
+const GL_CONFIG = {
+  antialias: true,
+  preserveDrawingBuffer: true,
+  powerPreference: "high-performance" as const,
+};
 
 const TARGET = new Vector3();
 const ORBIT_DIRECTION = new Vector3();
@@ -113,7 +120,40 @@ function CameraRig({
         controls.target.copy(TARGET);
         controls.maxDistance = framedDistance;
         controls.minDistance = minDistance;
-        controls.update();
+
+        if (preserveOrbit) {
+          controls.update();
+        } else {
+          // Reset has to land exactly front-on from any prior angle, and the
+          // camera position assigned above is the only reliable statement of
+          // that. setAzimuthalAngle cannot be used: it measures its delta from
+          // the controls' *stale* internal theta rather than that position, so
+          // from a rear view it queued a half-turn and glided away from front.
+          //
+          // Vertical drag can leave the tilt pinned (see ZoomOverlaySync), so
+          // reopen the limits or phi gets clamped to that lock instead of level.
+          controls.minPolarAngle = DEFAULT_POLAR_MIN;
+          controls.maxPolarAngle = DEFAULT_POLAR_MAX;
+
+          // With damping off, update() flushes leftover orbit momentum and
+          // zeroes it, instead of easing it in over the next frames. Auto-rotate
+          // is parked for the same reason: it would bias this frame's angle.
+          const damping = controls.enableDamping;
+          const autoRotating = controls.autoRotate;
+          controls.enableDamping = false;
+          controls.autoRotate = false;
+          controls.update();
+
+          // Momentum is cleared, so re-asserting the framed position now sticks:
+          // update() derives the orbit straight from it and rebuilds it verbatim.
+          camera.position
+            .copy(TARGET)
+            .addScaledVector(ORBIT_DIRECTION, nextDistance);
+          controls.update();
+
+          controls.enableDamping = damping;
+          controls.autoRotate = autoRotating;
+        }
       } else {
         camera.lookAt(TARGET);
       }
@@ -345,17 +385,24 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
     <Canvas shadows dpr={dpr} camera={CAMERA_CONFIG} gl={GL_CONFIG}>
       <SpotlightBackground />
 
-      <ambientLight intensity={0.7} />
+      {/* Kept low so the coloured rims read as light rather than as a wash. */}
+      <ambientLight intensity={0.5} />
       <directionalLight
         position={[2, 4, 2]}
-        intensity={1.1}
+        intensity={0.85}
         castShadow
         shadow-mapSize={[shadowMapSize, shadowMapSize]}
+        shadow-bias={-0.00018}
       />
-      <pointLight position={[-2, 1.5, -1.2]} intensity={7} color="#a855f7" />
+      {/* The signature violet ray. Left and behind the shoulder on purpose: it
+          rakes the left edge of the silhouette, which is what makes it read as
+          a ray from the side. Moving it in front of the model instead spills
+          purple flatly across the chest and the direction is lost. Slightly
+          hotter than the old kit needed, since this one is dressed in black. */}
+      <pointLight position={[-2.2, 1.5, -1.2]} intensity={8.5} color="#a855f7" />
       <pointLight position={[2, 0.6, 1.4]} intensity={4.5} color="#ec4899" />
       <pointLight position={[0, 2.4, 0]} intensity={2} color="#c084fc" />
-      <pointLight position={[0, 0.8, 3]} intensity={2.4} color="#e9d5ff" />
+      <pointLight position={[0, 0.8, 3]} intensity={2.2} color="#e9d5ff" />
       <pointLight position={[0, -0.6, 1.5]} intensity={1.4} color="#c026d3" />
 
       <Suspense fallback={null}>
@@ -365,10 +412,10 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
       <Platform />
       <ContactShadows
         position={[0, -0.925, 0]}
-        opacity={0.45}
-        scale={1.9}
-        blur={1.1}
-        far={0.9}
+        opacity={0.5}
+        scale={1.85}
+        blur={1.15}
+        far={0.95}
         resolution={512}
         color="#000000"
       />
@@ -380,7 +427,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
         enableZoom
         zoomSpeed={0.85}
         autoRotate={autoRotate}
-        autoRotateSpeed={1.4}
+        autoRotateSpeed={0.7}
         minDistance={2.6}
         maxDistance={5.5}
         minPolarAngle={DEFAULT_POLAR_MIN}

@@ -12,7 +12,7 @@ import { CATEGORY_ICONS } from '@/shared/icons'
 import { isStackableCategory } from '@/shared/types'
 import { playClickSfx } from '@/audio'
 
-const FALLBACK_SNAPSHOT = '/assets/Renders/Cyber Character.webp'
+const FALLBACK_SNAPSHOT = encodeURI('/assets/Renders/Ninja figurine.webp')
 
 export function MobileBuildDock() {
   const navigate = useNavigate()

@@ -88,6 +88,7 @@ function WarmAssetModel({
       const materials = getTraceMaterials(
         path,
         trace.userData.center as THREE.Vector3,
+        (trace.userData.radius as number | undefined) ?? 0.25,
       )
       targets.push(new THREE.LineSegments(trace, materials.stroke))
     }

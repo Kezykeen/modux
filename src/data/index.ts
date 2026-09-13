@@ -4,4 +4,5 @@ export {
   DEFAULT_SELECTION,
   RARITY_META,
   BODY_ASSET_PATH,
+  BODY_ASSET_PATHS,
 } from './catalog'

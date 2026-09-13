@@ -45,27 +45,19 @@ const item = (
 })
 
 export const CATALOG: CatalogItem[] = [
-  item('hair', 'Cyber Black Hair', 5.99, 'rare', '#1f1b24', '#0a0810', '/assets/Hair/Cyber Black Hair.glb', 88),
-  item('hair', 'Cyber Grey Hair', 4.99, 'common', '#6b6574', '#2a2630', '/assets/Hair/Cyber Grey Hair.glb', 74),
+  item('hair', 'Hair', 5.99, 'rare', '#1f1b24', '#0a0810', '/assets/Hair/Hair.glb', 88),
 
-  item('top', 'Techwear Top', 9.99, 'rare', '#4c1d95', '#1e1b4b', '/assets/Top/Techwear Top.glb', 90),
-  item('top', 'Cyber Moon Top', 12.99, 'epic', '#7c3aed', '#312e81', '/assets/Top/Cyber Moon Top/Cyber Moon Top.glb', 86),
+  item('top', 'Torso', 9.99, 'rare', '#4c1d95', '#1e1b4b', '/assets/Top/Torso.glb', 90),
 
-  item('pants', 'Black Pants', 5.49, 'common', '#1e293b', '#0b1220', '/assets/Pants/Black Pants.glb', 62),
-  item('pants', 'Cyber Black Pants', 6.99, 'rare', '#111827', '#0f172a', '/assets/Pants/Cyber Black Pants.glb', 84),
-  item('pants', 'Cyber Moon Pants', 8.99, 'epic', '#5b21b6', '#1e1b4b', '/assets/Pants/Cyber Moon Pants/Cyber Moon Pants.glb', 81),
+  item('pants', 'Legs', 6.99, 'rare', '#111827', '#0f172a', '/assets/Pants/Legs.glb', 84),
 
-  item('shoes', 'Black Strips', 5.99, 'common', '#e2e8f0', '#334155', '/assets/Shoes/Black Strips.glb', 80),
-  item('shoes', 'Purple Strips', 6.49, 'rare', '#a855f7', '#4c1d95', '/assets/Shoes/Purple Strips.glb', 77),
-  item('shoes', 'Chunky Sneakers', 7.49, 'rare', '#64748b', '#1e293b', '/assets/Shoes/Chunky Sneakers.glb', 71),
+  item('shoes', 'Shoes', 5.99, 'common', '#e2e8f0', '#334155', '/assets/Shoes/Shoes.glb', 80),
 
-  item('weapon', 'Double Katana', 14.99, 'epic', '#94a3b8', '#0f172a', '/assets/Weapon/Double Katana.glb', 92),
-  item('weapon', 'Neon Shield', 16.99, 'legendary', '#22d3ee', '#6d28d9', '/assets/Weapon/Neon Shield.glb', 89),
+  item('weapon', 'Sword', 14.99, 'epic', '#94a3b8', '#0f172a', '/assets/Weapon/Sword.glb', 92),
+  item('weapon', 'Shield', 16.99, 'legendary', '#22d3ee', '#6d28d9', '/assets/Weapon/Shield.glb', 89),
 
-  item('accessory', 'Ninja Mask', 5.99, 'rare', '#38bdf8', '#0c4a6e', '/assets/Accessories/Ninja Mask.glb', 85),
-  item('accessory', 'Techwear Chain', 6.99, 'common', '#94a3b8', '#334155', '/assets/Accessories/Techwear Chain.glb', 72),
-  item('accessory', 'Shadow Horns', 10.99, 'epic', '#a855f7', '#ec4899', '/assets/Accessories/Shadow Horns.glb', 93),
-  item('accessory', 'Shadow Shoulder Pet', 12.99, 'legendary', '#fbbf24', '#78350f', '/assets/Accessories/Shadow Shoulder Pet.glb', 96),
+  item('accessory', 'Mask', 5.99, 'rare', '#38bdf8', '#0c4a6e', '/assets/Accessories/Mask.glb', 85),
+  item('accessory', 'Chain', 6.99, 'common', '#94a3b8', '#334155', '/assets/Accessories/Chain.glb', 72),
 ]
 
 const byName = (name: string) => {
@@ -76,12 +68,18 @@ const byName = (name: string) => {
 
 /** Hair, tops, pants and shoes always start equipped and cannot be emptied. */
 export const DEFAULT_SELECTION: BuildSelection = {
-  hair: byName('Cyber Black Hair'),
-  top: byName('Techwear Top'),
-  pants: byName('Cyber Black Pants'),
-  shoes: byName('Black Strips'),
+  hair: byName('Hair'),
+  top: byName('Torso'),
+  pants: byName('Legs'),
+  shoes: byName('Shoes'),
   weapon: [],
   accessory: [],
 }
 
-export const BODY_ASSET_PATH = encodeURI('/assets/Body.glb')
+/** Head and hands are the always-on figure; clothing/gear composites on top. */
+export const BODY_ASSET_PATHS = [
+  asset('/assets/Body/Head.glb'),
+  asset('/assets/Body/Hand.glb'),
+]
+
+export const BODY_ASSET_PATH = BODY_ASSET_PATHS[0]

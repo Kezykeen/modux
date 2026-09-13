@@ -71,7 +71,9 @@ function buildTraceGeometry(root: THREE.Object3D) {
     progress[i] = (Math.atan2(y, x) + Math.PI) / (Math.PI * 2)
   }
   geometry.setAttribute('aProgress', new THREE.BufferAttribute(progress, 1))
+  geometry.computeBoundingSphere()
   geometry.userData.center = center
+  geometry.userData.radius = geometry.boundingSphere?.radius ?? 0.2
 
   return geometry
 }
@@ -115,14 +117,15 @@ const fragmentShader = /* glsl */ `
   }
 `
 
-export function createTraceMaterial(center: THREE.Vector3) {
-  return new THREE.ShaderMaterial({
+export function createTraceMaterial(center: THREE.Vector3, radius = 0.25) {
+  const restJitter = THREE.MathUtils.clamp(radius * 0.016, 0.00028, 0.0024)
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       uReveal: { value: 0 },
       uFlash: { value: 0 },
       uOpacity: { value: 1 },
       uTime: { value: 0 },
-      uJitter: { value: 0.005 },
+      uJitter: { value: restJitter },
       uCenter: { value: center.clone() },
       uColor: { value: new THREE.Color('#8b5cf6') },
       uHeadColor: { value: new THREE.Color('#f3e8ff') },
@@ -134,4 +137,6 @@ export function createTraceMaterial(center: THREE.Vector3) {
     depthWrite: false,
     toneMapped: false,
   })
+  material.userData.restJitter = restJitter
+  return material
 }

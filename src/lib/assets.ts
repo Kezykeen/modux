@@ -1,6 +1,6 @@
 import { API_BASE } from '@/lib/api/config'
 
-export const FALLBACK_SNAPSHOT = '/assets/Renders/Cyber Character.webp'
+export const FALLBACK_SNAPSHOT = encodeURI('/assets/Renders/Ninja figurine.webp')
 
 /** Display URL for a cart/collection/order snapshot. */
 export function resolveSnapshotUrl(snapshotUrl: string | null | undefined, fallback = FALLBACK_SNAPSHOT) {

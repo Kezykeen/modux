@@ -7,7 +7,7 @@
 // which stalled the frame and made the avatar's rotation stutter. Preparing an
 // asset once and reusing it keeps repeat applies free.
 import * as THREE from 'three'
-import { applyAssetTextures, type AssetTextureSpec, type LoadedTexturesByUrl } from './assetTextures'
+import { applyAssetTextures, styleKitMaterial, type AssetTextureSpec, type LoadedTexturesByUrl } from './assetTextures'
 import { createTraceMaterial } from './assemblyTrace'
 
 const GLOW_COLOR = new THREE.Color('#cbaaff')
@@ -57,6 +57,34 @@ function withRimGlow(source: THREE.Material) {
 }
 
 /**
+ * Fold GLTF node scale/rotation (the 0.01 + 90° X Blender export) into the
+ * mesh geometry. Outlines and shaders then share the same local space as the
+ * drawn triangles — without this, EdgesGeometry is in centimetres while the
+ * mesh is in metres, and the assembly stroke is wildly oversized.
+ */
+function bakeNodeTransforms(root: THREE.Object3D) {
+  root.updateWorldMatrix(true, true)
+  const rootInverse = root.matrixWorld.clone().invert()
+  const relative = new THREE.Matrix4()
+
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return
+
+    relative.multiplyMatrices(rootInverse, object.matrixWorld)
+    const geometry = object.geometry.clone()
+    geometry.applyMatrix4(relative)
+    if (geometry.attributes.tangent) geometry.deleteAttribute('tangent')
+    object.geometry = geometry
+    object.position.set(0, 0, 0)
+    object.quaternion.identity()
+    object.scale.set(1, 1, 1)
+    object.rotation.set(0, 0, 0)
+  })
+
+  root.updateMatrixWorld(true)
+}
+
+/**
  * The clone, its rim-glow materials and its bound textures, built on first use.
  * Every catalog path maps to exactly one avatar slot, so a single shared
  * instance per path can never be mounted in two places at once.
@@ -71,6 +99,7 @@ export function getPreparedAsset(
   if (cached) return cached
 
   const model = scene.clone(true)
+  bakeNodeTransforms(model)
   const uniforms: GlowUniform[] = []
 
   model.traverse((object) => {
@@ -83,6 +112,13 @@ export function getPreparedAsset(
     ).map((entry: THREE.Material) => {
       const { material, uniform } = withRimGlow(entry)
       applyAssetTextures(object, material, spec, textures)
+      styleKitMaterial(path, material)
+      if (material instanceof THREE.MeshStandardMaterial) {
+        const maps = [material.map, material.normalMap, material.emissiveMap, material.roughnessMap]
+        for (const map of maps) {
+          if (map) map.anisotropy = Math.max(map.anisotropy, 8)
+        }
+      }
       uniforms.push(uniform)
       return material
     })
@@ -94,11 +130,18 @@ export function getPreparedAsset(
   return prepared
 }
 
-export function getTraceMaterials(path: string, center: THREE.Vector3): TraceMaterials {
+export function getTraceMaterials(
+  path: string,
+  center: THREE.Vector3,
+  radius = 0.25,
+): TraceMaterials {
   const cached = traceMaterials.get(path)
   if (cached) return cached
 
-  const built = { stroke: createTraceMaterial(center), shockwave: createTraceMaterial(center) }
+  const built = {
+    stroke: createTraceMaterial(center, radius),
+    shockwave: createTraceMaterial(center, radius),
+  }
   traceMaterials.set(path, built)
   return built
 }
@@ -109,7 +152,7 @@ export function resetTraceMaterials(materials: TraceMaterials) {
     material.uniforms.uReveal.value = 0
     material.uniforms.uFlash.value = 0
     material.uniforms.uOpacity.value = 1
-    material.uniforms.uJitter.value = 0.005
+    material.uniforms.uJitter.value = material.userData.restJitter ?? 0.0008
   }
 }
 

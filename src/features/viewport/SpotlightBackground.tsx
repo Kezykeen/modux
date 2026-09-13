@@ -31,18 +31,48 @@ function createBackgroundTexture() {
   return texture
 }
 
+/** Dark violet IBL so metals pick up purple rays without a bright studio HDR. */
+function createPurpleEnvironment(gl: THREE.WebGLRenderer) {
+  const envScene = new THREE.Scene()
+  envScene.background = new THREE.Color('#0a0612')
+  envScene.add(new THREE.HemisphereLight('#a78bfa', '#050308', 0.65))
+  // Strong key from left to match the main purple rim
+  const key = new THREE.PointLight('#a855f7', 4.8, 14)
+  key.position.set(-2.8, 2.2, 0.8)
+  envScene.add(key)
+  const fill = new THREE.PointLight('#c084fc', 2.4, 11)
+  fill.position.set(2.2, 1.2, -1.0)
+  envScene.add(fill)
+  const accent = new THREE.PointLight('#7c3aed', 1.6, 9)
+  accent.position.set(-1.2, -0.8, 2.2)
+  envScene.add(accent)
+
+  const pmrem = new THREE.PMREMGenerator(gl)
+  const map = pmrem.fromScene(envScene, 0.06, 0.1, 12).texture
+  pmrem.dispose()
+  return map
+}
+
 export function SpotlightBackground() {
   const scene = useThree((state) => state.scene)
-  const texture = useMemo(() => createBackgroundTexture(), [])
+  const gl = useThree((state) => state.gl)
+  const background = useMemo(() => createBackgroundTexture(), [])
+  const environment = useMemo(() => createPurpleEnvironment(gl), [gl])
 
   useEffect(() => {
-    if (!texture) return
-    scene.background = texture
+    if (background) scene.background = background
+    scene.environment = environment
+    // Deliberately faint: it exists to give the kit's metal parts something
+    // violet to reflect. Without tone mapping to roll off highlights, anything
+    // higher clips the shoulders and hair tips to white.
+    scene.environmentIntensity = 0.14
     return () => {
       scene.background = null
-      texture.dispose()
+      scene.environment = null
+      background?.dispose()
+      environment.dispose()
     }
-  }, [scene, texture])
+  }, [scene, background, environment])
 
   return null
 }

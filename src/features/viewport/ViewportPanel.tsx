@@ -16,7 +16,7 @@ export function ViewportPanel() {
   const [displayMode, setDisplayMode] = useState<"digital" | "physical">(
     "digital",
   );
-  const [autoRotate, setAutoRotate] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [snapshot, setSnapshot] = useState<string | null>(null)
   const [showRig, setShowRig] = useState(false)
