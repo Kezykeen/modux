@@ -66,15 +66,24 @@ function bakeNodeTransforms(root: THREE.Object3D) {
   root.updateWorldMatrix(true, true)
   const rootInverse = root.matrixWorld.clone().invert()
   const relative = new THREE.Matrix4()
+  const meshes: THREE.Mesh[] = []
 
   root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return
+    if (object instanceof THREE.Mesh) meshes.push(object)
+  })
 
+  // Multi-material GLBs split one node into a group plus child meshes. The
+  // scale lives on the group; baking it into the geometry and leaving the
+  // group in place applies it twice (body and head collapse).
+  for (const object of meshes) {
     relative.multiplyMatrices(rootInverse, object.matrixWorld)
     const geometry = object.geometry.clone()
     geometry.applyMatrix4(relative)
     if (geometry.attributes.tangent) geometry.deleteAttribute('tangent')
     object.geometry = geometry
+  }
+
+  root.traverse((object) => {
     object.position.set(0, 0, 0)
     object.quaternion.identity()
     object.scale.set(1, 1, 1)

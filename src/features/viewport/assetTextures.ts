@@ -125,18 +125,8 @@ export function applyAssetTextures(
   return material
 }
 
-/**
- * Path-specific look tweaks that don't need a new export. The shoe albedo is
- * near-white and stole the scene; we sit it back in the shadows.
- */
-export function styleKitMaterial(path: string, material: THREE.Material) {
-  if (!(material instanceof THREE.MeshStandardMaterial)) return material
-  if (path.includes('/Shoes/')) {
-    material.color.multiplyScalar(0.38)
-    material.roughness = Math.max(material.roughness, 0.74)
-    material.metalness = Math.min(material.metalness, 0.12)
-    material.envMapIntensity = 0.18
-  }
+/** Hook for path-specific look tweaks. The chibi kit ships balanced PBR, so this is a no-op. */
+export function styleKitMaterial(_path: string, material: THREE.Material) {
   return material
 }
 

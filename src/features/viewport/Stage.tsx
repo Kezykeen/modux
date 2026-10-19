@@ -3,16 +3,18 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   type RefObject,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
-import { Vector3, type PerspectiveCamera } from "three";
+import { Object3D, Vector3, type DirectionalLight, type OrthographicCamera, type PerspectiveCamera } from "three";
 import { useMediaQuery } from '@/shared/hooks';
-import { AvatarModel } from "./AvatarModel";
+import { AvatarModel, figurineShadowFocusY } from "./AvatarModel";
 import { AssetWarmup } from "./AssetWarmup";
 import { Platform } from "./Platform";
 import { SpotlightBackground } from "./SpotlightBackground";
@@ -30,9 +32,9 @@ interface StageProps {
 }
 
 /** World-space extents of the avatar plus its pedestal, measured from the source GLBs. */
-const AVATAR_HEIGHT = 1.72;
-const AVATAR_WIDTH = 1.45;
-const AVATAR_CENTER_Y = -0.16;
+const AVATAR_HEIGHT = 1.28;
+const AVATAR_WIDTH = 1.05;
+const AVATAR_CENTER_Y = -0.32;
 const FRAME_MARGIN = 1.52;
 /** Closest allowed camera distance as a fraction of the framed (starting) distance. */
 const MIN_ZOOM_RATIO = 0.52;
@@ -361,6 +363,51 @@ function CanvasGrabCursor() {
   return null;
 }
 
+/**
+ * Tight shadow map that tracks the idle bob. A wide, fixed frustum is what made
+ * the hair shadow crawl across the cheek in steps when the face was zoomed in.
+ */
+function KeyLight({ mapSize }: { mapSize: number }) {
+  const light = useRef<DirectionalLight>(null);
+  const target = useMemo(() => new Object3D(), []);
+
+  useLayoutEffect(() => {
+    const shadow = light.current?.shadow;
+    if (!shadow) return;
+    const cam = shadow.camera as OrthographicCamera;
+    const extent = 1.05;
+    cam.left = -extent;
+    cam.right = extent;
+    cam.top = extent;
+    cam.bottom = -extent;
+    cam.near = 0.2;
+    cam.far = 14;
+    cam.updateProjectionMatrix();
+    shadow.mapSize.set(mapSize, mapSize);
+    shadow.bias = -0.00012;
+    shadow.normalBias = 0.025;
+    shadow.needsUpdate = true;
+  }, [mapSize]);
+
+  useFrame(({ clock }) => {
+    target.position.set(0, figurineShadowFocusY(clock.elapsedTime), 0);
+    target.updateMatrixWorld();
+  });
+
+  return (
+    <>
+      <primitive object={target} />
+      <directionalLight
+        ref={light}
+        target={target}
+        position={[2, 4, 2]}
+        intensity={0.85}
+        castShadow
+      />
+    </>
+  );
+}
+
 export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
   { autoRotate, overlayRef },
   ref,
@@ -368,7 +415,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
   const isMobile = useMediaQuery('(max-width: 767px)')
   const dpr: [number, number] = isMobile ? [1, 1.25] : [1, 2]
   const msaa = isMobile ? 0 : 4
-  const shadowMapSize = isMobile ? 512 : 1024
+  const shadowMapSize = isMobile ? 1024 : 2048
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   const frameRef = useRef<((preserveOrbit: boolean) => void) | null>(null);
@@ -382,18 +429,12 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
   }));
 
   return (
-    <Canvas shadows dpr={dpr} camera={CAMERA_CONFIG} gl={GL_CONFIG}>
+    <Canvas shadows="soft" dpr={dpr} camera={CAMERA_CONFIG} gl={GL_CONFIG}>
       <SpotlightBackground />
 
       {/* Kept low so the coloured rims read as light rather than as a wash. */}
       <ambientLight intensity={0.5} />
-      <directionalLight
-        position={[2, 4, 2]}
-        intensity={0.85}
-        castShadow
-        shadow-mapSize={[shadowMapSize, shadowMapSize]}
-        shadow-bias={-0.00018}
-      />
+      <KeyLight mapSize={shadowMapSize} />
       {/* The signature violet ray. Left and behind the shoulder on purpose: it
           rakes the left edge of the silhouette, which is what makes it read as
           a ray from the side. Moving it in front of the model instead spills

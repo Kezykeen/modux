@@ -26,17 +26,24 @@ import {
 } from "./assetTextures";
 
 /**
- * Designer kit is centimetre-scale. Rest pose sits soles on the pedestal
- * (top at y = -0.93); the bob only lifts, never sinks.
- *
- * The kit is authored with its left-right axis on Z (the two hands straddle Z)
- * and the face on +X — the mask sits at +X of the head, the sword and shield at
- * -X. Camera lives on +Z, so a -90° yaw is what turns the face to the viewer.
+ * Chibi kit is already ~1.2 units tall, soles just under y = 0, face toward +Z
+ * (zipper and charm sit on +Z, bag on -Z). Pedestal surface is y = -0.93.
+ * The bob only lifts, never sinks.
  */
-const FIGURINE_SCALE = 7.4
-const FIGURINE_Y = -0.733
+const FIGURINE_SCALE = 1
+const FIGURINE_Y = -0.925
 const FIGURINE_BOB = 0.036
-const FIGURINE_ROTATION: [number, number, number] = [0, -Math.PI / 2, 0]
+const FIGURINE_ROTATION: [number, number, number] = [0, 0, 0]
+
+/** Idle lift. Shared with the key light so the shadow map rides the bob instead of crawling across the face. */
+export function figurineBob(time: number) {
+  return (Math.sin(time * 1.1) * 0.5 + 0.5) * FIGURINE_BOB
+}
+
+/** World-space point the key-light shadow camera should stay locked to. */
+export function figurineShadowFocusY(time: number) {
+  return FIGURINE_Y + figurineBob(time) + 0.58
+}
 
 const EMPTY_TEXTURES: LoadedTexturesByUrl = {}
 
@@ -349,8 +356,7 @@ export function AvatarModel() {
 
   useFrame((state) => {
     if (!groupRef.current) return;
-    groupRef.current.position.y =
-      FIGURINE_Y + (Math.sin(state.clock.elapsedTime * 1.1) * 0.5 + 0.5) * FIGURINE_BOB;
+    groupRef.current.position.y = FIGURINE_Y + figurineBob(state.clock.elapsedTime);
   });
 
   return (
