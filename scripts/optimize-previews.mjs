@@ -1,8 +1,8 @@
 /**
- * Convert any leftover UI PNGs to WebP at display size.
- * Catalog stills live as .webp; drop a PNG in Renders/ and re-run this.
+ * Convert leftover UI PNG/JPG stills to WebP at display size, then delete the source.
+ * Catalog stills live as .webp; drop a PNG or JPG in Renders/ and re-run this.
  */
-import { readdir } from 'node:fs/promises'
+import { readdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -21,19 +21,21 @@ async function toWebp(src, dest, { max, quality }) {
     .toFile(dest)
 }
 
-const files = (await readdir(rendersDir)).filter((name) => name.endsWith('.png'))
+const files = (await readdir(rendersDir)).filter((name) => /\.(png|jpe?g)$/i.test(name))
 for (const name of files) {
   const src = path.join(rendersDir, name)
-  const dest = path.join(rendersDir, name.replace(/\.png$/i, '.webp'))
+  const dest = path.join(rendersDir, name.replace(/\.(png|jpe?g)$/i, '.webp'))
   await toWebp(src, dest, PREVIEW)
-  console.log('wrote', path.relative(root, dest))
+  await unlink(src)
+  console.log('wrote', path.relative(root, dest), '(removed source)')
 }
 
 try {
   await toWebp(magneticPng, path.join(root, 'public/magnetic.webp'), MAGNETIC)
   console.log('wrote public/magnetic.webp')
 } catch (error) {
-  if (error.code !== 'ENOENT') throw error
+  const missing = error.code === 'ENOENT' || String(error.message).includes('Input file is missing')
+  if (!missing) throw error
 }
 
-if (files.length === 0) console.log('no render PNGs to convert')
+if (files.length === 0) console.log('no render PNG/JPG files to convert')
