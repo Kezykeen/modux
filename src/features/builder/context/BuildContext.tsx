@@ -9,31 +9,16 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import {
-  DEFAULT_KIT_ID,
-  getKit,
-  isKitId,
-  type KitDef,
-  type KitId,
-} from '@/data/catalog'
+import { CATALOG, DEFAULT_SELECTION } from '@/data/catalog'
 import { armAssemblySfx } from '@/audio'
 import { playRemoveSfx } from '@/audio'
 import { isStackableCategory, type BuildSelection, type CatalogItem, type CategoryId } from '@/shared/types'
-import { inferKitId, normalizeSelection } from '../utils/normalize-selection'
+import { normalizeSelection } from '../utils/normalize-selection'
 
 export type ActiveCategory = CategoryId | 'all'
 export type ViewMode = '3d' | '2d'
 
-type CustomizeLocationState = {
-  selection?: BuildSelection
-  kitId?: KitId
-} | null
-
 interface BuildContextValue {
-  kit: KitDef
-  kitId: KitId
-  kitPicked: boolean
-  resumeKitId: KitId | null
   catalog: CatalogItem[]
   selection: BuildSelection
   activeCategory: ActiveCategory
@@ -46,9 +31,7 @@ interface BuildContextValue {
   buildItems: CatalogItem[]
   buildPrice: number
   cartCount: number
-  chooseKit: (id: KitId) => void
-  changeKit: () => void
-  loadSelection: (selection: BuildSelection, kitId?: KitId) => void
+  loadSelection: (selection: BuildSelection) => void
 }
 
 interface HoverContextValue {
@@ -74,30 +57,13 @@ function stackOf(selection: BuildSelection, categoryId: CategoryId) {
   return []
 }
 
-function applyKit(id: KitId, selection?: BuildSelection) {
-  return {
-    kitId: id,
-    selection: selection ? normalizeSelection(selection, id) : getKit(id).defaultSelection,
-  }
-}
-
 export function BuildProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const pending = (location.state as CustomizeLocationState)?.selection
-  const pendingKit =
-    (location.state as CustomizeLocationState)?.kitId ??
-    (pending ? inferKitId(pending) : null)
-
-  const [kitId, setKitId] = useState<KitId>(pendingKit && isKitId(pendingKit) ? pendingKit : DEFAULT_KIT_ID)
-  const kit = getKit(kitId)
-  const [kitPicked, setKitPicked] = useState(() => Boolean(pending))
-  const [resumeKitId, setResumeKitId] = useState<KitId | null>(() =>
-    pending ? (pendingKit && isKitId(pendingKit) ? pendingKit : DEFAULT_KIT_ID) : null,
-  )
+  const pendingSelection = (location.state as { selection?: BuildSelection } | null)?.selection
 
   const [selection, setSelection] = useState<BuildSelection>(() =>
-    pending ? normalizeSelection(pending, kitId) : kit.defaultSelection,
+    pendingSelection ? normalizeSelection(pendingSelection) : DEFAULT_SELECTION,
   )
   const [hoveredCategory, setHoveredCategory] = useState<CategoryId | null>(null)
   const [activeCategory, setActiveCategory] = useState<ActiveCategory>('all')
@@ -105,55 +71,23 @@ export function BuildProvider({ children }: { children: ReactNode }) {
 
   const selectionRef = useRef(selection)
   const viewModeRef = useRef(viewMode)
-  const kitIdRef = useRef(kitId)
   useEffect(() => {
     selectionRef.current = selection
   }, [selection])
   useEffect(() => {
     viewModeRef.current = viewMode
   }, [viewMode])
-  useEffect(() => {
-    kitIdRef.current = kitId
-  }, [kitId])
 
   useEffect(() => {
-    if (!location.pathname.startsWith('/customize')) return
-    const state = location.state as CustomizeLocationState
-    const incoming = state?.selection
-    if (!incoming) return
-    const nextKit = state?.kitId && isKitId(state.kitId) ? state.kitId : inferKitId(incoming)
-    const applied = applyKit(nextKit, incoming)
-    setKitId(applied.kitId)
-    setResumeKitId(applied.kitId)
-    setSelection(applied.selection)
-    setKitPicked(true)
-    setActiveCategory('all')
-    setViewModeState('3d')
-    setHoveredCategory(null)
-    navigate('/customize', { replace: true, state: null })
+    const pending = (location.state as { selection?: BuildSelection } | null)?.selection
+    if (!pending) return
+    setSelection(normalizeSelection(pending))
+    navigate(location.pathname, { replace: true, state: null })
   }, [location.key, location.pathname, location.state, navigate])
 
   const setViewMode = useCallback((mode: ViewMode) => {
     setViewModeState(mode)
     if (mode === '2d') setHoveredCategory(null)
-  }, [])
-
-  const chooseKit = useCallback((id: KitId) => {
-    if (id !== kitIdRef.current) {
-      setKitId(id)
-      setSelection(getKit(id).defaultSelection)
-    }
-    setResumeKitId(id)
-    setKitPicked(true)
-    setActiveCategory('all')
-    setViewModeState('3d')
-    setHoveredCategory(null)
-  }, [])
-
-  const changeKit = useCallback(() => {
-    setKitPicked(false)
-    setHoveredCategory(null)
-    setViewModeState('3d')
   }, [])
 
   const selectItem = useCallback((categoryId: CategoryId, itemId: string) => {
@@ -203,35 +137,23 @@ export function BuildProvider({ children }: { children: ReactNode }) {
     [selection],
   )
 
-  const loadSelection = useCallback((next: BuildSelection, nextKitId?: KitId) => {
-    const resolvedKit = nextKitId ?? inferKitId(next)
-    const applied = applyKit(resolvedKit, next)
-    setKitId(applied.kitId)
-    setResumeKitId(applied.kitId)
-    setSelection(applied.selection)
-    setKitPicked(true)
-    setActiveCategory('all')
-    setViewModeState('3d')
-    setHoveredCategory(null)
+  const loadSelection = useCallback((next: BuildSelection) => {
+    setSelection(normalizeSelection(next))
   }, [])
 
   const buildItems = useMemo(
     () =>
       selectedIds(selection)
-        .map((id) => kit.catalog.find((c) => c.id === id))
+        .map((id) => CATALOG.find((c) => c.id === id))
         .filter((item): item is CatalogItem => Boolean(item)),
-    [selection, kit.catalog],
+    [selection],
   )
 
   const buildPrice = useMemo(() => buildItems.reduce((sum, i) => sum + i.price, 0), [buildItems])
 
   const value = useMemo<BuildContextValue>(
     () => ({
-      kit,
-      kitId,
-      kitPicked,
-      resumeKitId,
-      catalog: kit.catalog,
+      catalog: CATALOG,
       selection,
       activeCategory,
       setActiveCategory,
@@ -243,15 +165,9 @@ export function BuildProvider({ children }: { children: ReactNode }) {
       buildItems,
       buildPrice,
       cartCount: buildItems.length,
-      chooseKit,
-      changeKit,
       loadSelection,
     }),
     [
-      kit,
-      kitId,
-      kitPicked,
-      resumeKitId,
       selection,
       activeCategory,
       viewMode,
@@ -261,8 +177,6 @@ export function BuildProvider({ children }: { children: ReactNode }) {
       isSelected,
       buildItems,
       buildPrice,
-      chooseKit,
-      changeKit,
       loadSelection,
     ],
   )

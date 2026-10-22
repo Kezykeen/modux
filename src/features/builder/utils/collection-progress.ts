@@ -19,6 +19,8 @@ export function collectCatalogIdsFromSelection(selection: unknown): string[] {
   const s = selection as BuildSelection
   const ids: string[] = []
 
+  if (typeof s.body === 'string') ids.push(s.body)
+  if (typeof s.head === 'string') ids.push(s.head)
   if (typeof s.hair === 'string') ids.push(s.hair)
   if (typeof s.top === 'string') ids.push(s.top)
   if (typeof s.pants === 'string') ids.push(s.pants)

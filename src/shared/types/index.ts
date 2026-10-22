@@ -1,6 +1,6 @@
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 
-export type CategoryId = 'hair' | 'top' | 'pants' | 'shoes' | 'weapon' | 'accessory'
+export type CategoryId = 'body' | 'head' | 'hair' | 'top' | 'pants' | 'shoes' | 'weapon' | 'accessory'
 
 export type ConnectorSide = 'left' | 'right'
 
@@ -27,6 +27,10 @@ export interface CatalogItem {
   assetPath: string
   /** Optional product render shown on cards; omitted when no matching file ships. */
   previewPath?: string
+  /** Extra posed meshes that travel with this part (e.g. hands with a body). */
+  extraPaths?: string[]
+  /** One-sided extras that should also be drawn mirrored across X. */
+  mirrorXPaths?: string[]
 }
 
 /**
@@ -34,6 +38,8 @@ export interface CatalogItem {
  * list and may be empty.
  */
 export type BuildSelection = {
+  body: string
+  head: string
   hair: string
   top: string
   pants: string

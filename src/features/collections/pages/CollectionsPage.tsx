@@ -15,7 +15,7 @@ export function CollectionsPage() {
 
   const loadBuild = (partsJson: unknown) => {
     const parsed = parseSavedBuild(partsJson)
-    navigate('/customize', { state: { selection: parsed.selection, kitId: parsed.kitId } })
+    navigate('/customize', { state: { selection: parsed.selection } })
   }
 
   if (!isAuthenticated) {

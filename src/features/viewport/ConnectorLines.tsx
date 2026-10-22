@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from 'motion/react'
-import { useBuild, useHover } from '@/features/builder'
+import { CATEGORIES } from '@/data/catalog'
+import { useHover } from '@/features/builder'
 import type { CategoryDef } from '@/shared/types'
 import { BRANCH_COUNT, VIEW_HEIGHT, branchPath, spinePath, strike } from './lightning'
 import type { Bolt } from './lightning'
@@ -268,10 +269,9 @@ function Connector({ category, index }: { category: CategoryDef; index: number }
 }
 
 export function ConnectorLines() {
-  const { kit } = useBuild()
   return (
     <div className="pointer-events-none absolute inset-0 z-5">
-      {kit.categories.map((category, index) => (
+      {CATEGORIES.map((category, index) => (
         <Connector key={category.id} category={category} index={index} />
       ))}
     </div>

@@ -5,23 +5,11 @@ import { CollectionProgressCard } from './CollectionProgressCard'
 import { useBuild } from '../context/BuildContext'
 
 export function RightPanel() {
-  const { viewMode, kit, changeKit } = useBuild()
+  const { viewMode } = useBuild()
   const locked = viewMode === '2d'
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-full flex-col gap-2 max-lg:h-auto max-lg:gap-3">
-      <button
-        type="button"
-        onClick={changeKit}
-        className="flex shrink-0 items-center justify-between rounded-xl border border-white/8 bg-panel/60 px-3 py-2 lg:hidden"
-      >
-        <span className="text-[11px] font-bold tracking-[0.16em] text-ink uppercase">
-          {kit.name}
-        </span>
-        <span className="text-[10px] font-semibold tracking-[0.14em] text-primary-2 uppercase">
-          Change figure
-        </span>
-      </button>
       <div
         className={`thin-scrollbar relative shrink-0 overflow-x-auto rounded-xl border border-white/8 bg-panel/60 p-1.5 transition-opacity duration-300 ${
           locked ? 'pointer-events-none opacity-40' : ''

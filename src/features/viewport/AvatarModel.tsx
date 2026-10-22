@@ -339,14 +339,34 @@ function SelectedSlotAsset({
     : undefined;
 
   if (!item) return null;
+  const highlighted = hoveredCategory === categoryId
   // Keyed by item so swapping a slot remounts and replays the assembly.
   return (
-    <MemoNativeAsset
-      key={item.id}
-      path={item.assetPath}
-      highlighted={hoveredCategory === categoryId}
-      animateIn
-    />
+    <>
+      <MemoNativeAsset
+        key={item.id}
+        path={item.assetPath}
+        highlighted={highlighted}
+        animateIn
+      />
+      {(item.extraPaths ?? []).map((path) => (
+        <MemoNativeAsset
+          key={`${item.id}:${path}`}
+          path={path}
+          highlighted={highlighted}
+          animateIn
+        />
+      ))}
+      {(item.mirrorXPaths ?? []).map((path) => (
+        <MemoNativeAsset
+          key={`${item.id}:${path}#mirror-x`}
+          path={path}
+          variant="mirror-x"
+          highlighted={highlighted}
+          animateIn
+        />
+      ))}
+    </>
   );
 }
 
@@ -373,7 +393,6 @@ function SelectedStack({ categoryId }: { categoryId: 'accessory' | 'weapon' }) {
 
 export function AvatarModel() {
   const groupRef = useRef<THREE.Group>(null);
-  const { kit } = useBuild();
 
   useFrame((state) => {
     if (!groupRef.current) return;
@@ -382,15 +401,11 @@ export function AvatarModel() {
 
   return (
     <group ref={groupRef} rotation={FIGURINE_ROTATION} scale={FIGURINE_SCALE}>
-      {kit.bodyPaths.map((path) => (
-        <MemoNativeAsset key={path} path={path} />
-      ))}
-      {(kit.mirrorXPaths ?? []).map((path) => (
-        <MemoNativeAsset key={`${path}#mirror-x`} path={path} variant="mirror-x" />
-      ))}
+      <SelectedSlotAsset categoryId="body" />
       <SelectedSlotAsset categoryId="shoes" />
       <SelectedSlotAsset categoryId="pants" />
       <SelectedSlotAsset categoryId="top" />
+      <SelectedSlotAsset categoryId="head" />
       <SelectedSlotAsset categoryId="hair" />
       <SelectedStack categoryId="weapon" />
       <SelectedStack categoryId="accessory" />
