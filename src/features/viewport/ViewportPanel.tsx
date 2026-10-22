@@ -8,10 +8,9 @@ import { ConnectorLines } from "./ConnectorLines";
 import { CONNECTOR_GATE_MS } from "./connectorIntro";
 import { SegmentedToggle, IconButton } from '@/shared/components'
 import { useBuild, useSnapshot, type ViewMode } from '@/features/builder'
-import { CATEGORIES } from '@/data/catalog'
 
 export function ViewportPanel() {
-  const { viewMode, setViewMode } = useBuild()
+  const { viewMode, setViewMode, kit, changeKit } = useBuild()
   const { registerCapture } = useSnapshot()
   const [displayMode, setDisplayMode] = useState<"digital" | "physical">(
     "digital",
@@ -74,9 +73,18 @@ export function ViewportPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex shrink-0 items-center justify-between px-0.5 max-lg:hidden">
-        <span className="text-[11px] font-bold tracking-[0.2em] text-muted-2">
-          VIEW MODE
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-bold tracking-[0.2em] text-muted-2">
+            VIEW MODE
+          </span>
+          <button
+            type="button"
+            onClick={changeKit}
+            className="text-[11px] font-semibold tracking-[0.12em] text-primary-2 uppercase transition hover:text-primary"
+          >
+            {kit.name} · Change figure
+          </button>
+        </div>
         <SegmentedToggle
           layoutId="view-mode"
           value={viewMode}
@@ -155,7 +163,7 @@ export function ViewportPanel() {
             </motion.div>
           ) : null}
           {showRig
-            ? CATEGORIES.map((cat, i) => (
+            ? kit.categories.map((cat, i) => (
                 <div key={cat.id} className="max-lg:hidden lg:contents">
                   <ConnectorPoint category={cat} index={i} />
                 </div>

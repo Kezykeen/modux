@@ -1,19 +1,18 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CATALOG } from '@/data/catalog';
 import { useBuild } from '../../context/BuildContext';
 import { ItemCard } from "./ItemCard";
 import { FilterBar } from "./FilterBar";
 import type { Rarity } from '@/shared/types';
 
 export function ItemGrid() {
-  const { activeCategory } = useBuild();
+  const { activeCategory, catalog } = useBuild();
   const [rarity, setRarity] = useState("All");
   const [sort, setSort] = useState("Popular");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
 
   const items = useMemo(() => {
-    let list = CATALOG.filter(
+    let list = catalog.filter(
       (c) => activeCategory === "all" || c.categoryId === activeCategory,
     );
     if (rarity !== "All") {
@@ -26,7 +25,7 @@ export function ItemGrid() {
       return b.popularity - a.popularity;
     });
     return list;
-  }, [activeCategory, rarity, sort]);
+  }, [activeCategory, catalog, rarity, sort]);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-1.5 max-lg:flex-none lg:min-h-0 lg:flex-1 min-[1401px]:min-h-0 min-[1401px]:flex-1">

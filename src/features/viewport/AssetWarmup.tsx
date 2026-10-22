@@ -8,16 +8,14 @@ import { Suspense, useEffect, useState } from 'react'
 import { useGLTF, useTexture } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { CATALOG } from '@/data/catalog'
 import { CRITICAL_GLB_PATHS, whenDefaultAvatarReady } from '@/assets/preload'
+import { useBuild } from '@/features/builder'
 import { ASSET_TEXTURES, textureUrlDict, type LoadedTexturesByUrl } from './assetTextures'
 import { getPreparedAsset, getTraceMaterials, isAssetMounted } from './assetCache'
 import { getTraceGeometry } from './assemblyTrace'
 
-function warmPaths() {
-  return CATALOG.map((item) => item.assetPath).filter(
-    (path) => !CRITICAL_GLB_PATHS.includes(path),
-  )
+function warmPaths(catalogPaths: string[]) {
+  return catalogPaths.filter((path) => !CRITICAL_GLB_PATHS.includes(path))
 }
 
 type IdleWindow = typeof window & {
@@ -111,6 +109,7 @@ function WarmAssetModel({
 }
 
 export function AssetWarmup() {
+  const { kit } = useBuild()
   const [admitted, setAdmitted] = useState<string[]>([])
 
   // Unused catalog parts wait until the default avatar is on screen so they
@@ -120,7 +119,11 @@ export function AssetWarmup() {
     let index = 0
     let handle = 0
 
-    const paths = warmPaths()
+    setAdmitted([])
+    const paths = warmPaths([
+      ...kit.bodyPaths,
+      ...kit.catalog.map((item) => item.assetPath),
+    ])
 
     const admit = () => {
       if (cancelled || index >= paths.length) return
@@ -130,17 +133,25 @@ export function AssetWarmup() {
       handle = scheduleIdle(admit)
     }
 
-    const stopReady = whenDefaultAvatarReady(() => {
-      if (cancelled) return
-      handle = scheduleIdle(admit)
-    })
+    const kitUsesLandingPreload = paths.every((path) => CRITICAL_GLB_PATHS.includes(path))
+      || kit.bodyPaths.some((path) => CRITICAL_GLB_PATHS.includes(path))
+
+    const stopReady = kitUsesLandingPreload
+      ? whenDefaultAvatarReady(() => {
+          if (cancelled) return
+          handle = scheduleIdle(admit)
+        })
+      : (() => {
+          handle = scheduleIdle(admit)
+          return () => {}
+        })()
 
     return () => {
       cancelled = true
       stopReady()
       cancelIdle(handle)
     }
-  }, [])
+  }, [kit.id, kit.bodyPaths, kit.catalog])
 
   return (
     <>

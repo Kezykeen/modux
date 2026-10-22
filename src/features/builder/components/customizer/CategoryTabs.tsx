@@ -1,21 +1,19 @@
 import { motion } from 'motion/react'
 import { LayoutGrid } from 'lucide-react'
-import { CATEGORIES } from '@/data/catalog'
 import { useBuild, type ActiveCategory } from '../../context/BuildContext'
 import { CATEGORY_ICONS } from '@/shared/icons'
 import { playClickSfx } from '@/audio'
 
-const TABS: { id: ActiveCategory; label: string }[] = [
-  { id: 'all', label: 'All' },
-  ...CATEGORIES.map((c) => ({ id: c.id as ActiveCategory, label: c.label })),
-]
-
 export function CategoryTabs() {
-  const { activeCategory, setActiveCategory } = useBuild()
+  const { activeCategory, setActiveCategory, kit } = useBuild()
+  const tabs: { id: ActiveCategory; label: string }[] = [
+    { id: 'all', label: 'All' },
+    ...kit.categories.map((c) => ({ id: c.id as ActiveCategory, label: c.label })),
+  ]
 
   return (
     <div className="inline-flex items-center gap-0.5">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const isActive = activeCategory === tab.id
         const Icon = tab.id === 'all' ? LayoutGrid : CATEGORY_ICONS[tab.id as keyof typeof CATEGORY_ICONS]
         return (

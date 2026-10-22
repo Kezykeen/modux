@@ -1,5 +1,5 @@
 import { useGLTF, useTexture } from '@react-three/drei'
-import { BODY_ASSET_PATHS, CATALOG, DEFAULT_SELECTION } from '@/data/catalog'
+import { BODY_ASSET_PATHS, DEFAULT_SELECTION, getKit } from '@/data/catalog'
 // Deep import — avoid `@/features/viewport` barrel (Stage → AssetWarmup → preload cycle).
 import { ASSET_TEXTURES, ALL_TEXTURE_URLS, collectTextureUrls } from '@/features/viewport/assetTextures'
 import type { BuildSelection, CatalogItem } from '@/shared/types'
@@ -13,7 +13,7 @@ function equippedItems(selection: BuildSelection): CatalogItem[] {
     else if (typeof value === 'string') ids.push(value)
   }
   return ids
-    .map((id) => CATALOG.find((entry) => entry.id === id))
+    .map((id) => getKit('street').catalog.find((entry) => entry.id === id))
     .filter((item): item is CatalogItem => Boolean(item))
 }
 
@@ -115,7 +115,7 @@ export function scheduleDeferredCatalogPreload() {
   whenDefaultAvatarReady(() => {
     const criticalGlbs = new Set(CRITICAL_GLB_PATHS)
     const criticalTextures = new Set(criticalTextureUrls())
-    const deferredGlbs = CATALOG.map((item) => item.assetPath).filter((path) => !criticalGlbs.has(path))
+    const deferredGlbs = getKit('street').catalog.map((item) => item.assetPath).filter((path) => !criticalGlbs.has(path))
     const deferredTextures = ALL_TEXTURE_URLS.filter((url) => !criticalTextures.has(url))
 
     let glbIndex = 0

@@ -93,22 +93,48 @@ function bakeNodeTransforms(root: THREE.Object3D) {
   root.updateMatrixWorld(true)
 }
 
+const MIRROR_X = new THREE.Matrix4().makeScale(-1, 1, 1)
+
+/** Duplicate a one-sided posed mesh onto the opposite side of the figure. */
+function mirrorGeometryX(root: THREE.Object3D) {
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return
+    const geometry = object.geometry.clone()
+    geometry.applyMatrix4(MIRROR_X)
+    const index = geometry.index
+    if (index) {
+      const arr = index.array
+      for (let i = 0; i < arr.length; i += 3) {
+        const tmp = arr[i]!
+        arr[i] = arr[i + 2]!
+        arr[i + 2] = tmp
+      }
+      index.needsUpdate = true
+    }
+    if (geometry.attributes.tangent) geometry.deleteAttribute('tangent')
+    geometry.computeVertexNormals()
+    object.geometry = geometry
+  })
+}
+
 /**
  * The clone, its rim-glow materials and its bound textures, built on first use.
- * Every catalog path maps to exactly one avatar slot, so a single shared
- * instance per path can never be mounted in two places at once.
+ * Cache keys are unique per mounted instance — a mirrored copy cannot share
+ * the original Object3D.
  */
 export function getPreparedAsset(
   path: string,
   scene: THREE.Object3D,
   spec: AssetTextureSpec | undefined,
   textures: LoadedTexturesByUrl,
+  cacheKey = path,
 ): PreparedAsset {
-  const cached = assets.get(path)
+  const cached = assets.get(cacheKey)
   if (cached) return cached
 
   const model = scene.clone(true)
   bakeNodeTransforms(model)
+  if (cacheKey.endsWith('#mirror-x')) mirrorGeometryX(model)
   const uniforms: GlowUniform[] = []
 
   model.traverse((object) => {
@@ -135,7 +161,7 @@ export function getPreparedAsset(
   })
 
   const prepared = { model, uniforms }
-  assets.set(path, prepared)
+  assets.set(cacheKey, prepared)
   return prepared
 }
 

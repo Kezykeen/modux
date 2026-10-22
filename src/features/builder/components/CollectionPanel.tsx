@@ -5,14 +5,14 @@ import { useAuth } from '@/features/auth'
 import { useBuild } from '../context/BuildContext'
 import { useSnapshot } from '../context/SnapshotContext'
 import { useCollections } from '@/features/collections'
-import { normalizeSelection } from '../utils/normalize-selection'
+import { parseSavedBuild } from '../utils/normalize-selection'
 import { resolveSnapshotUrl } from '@/lib/assets'
 import { LoadingButton, ModuxLoader, Skeleton, Spinner } from '@/shared/components'
 
 export function CollectionPanel() {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
-  const { selection, buildItems, loadSelection } = useBuild()
+  const { selection, buildItems, loadSelection, kitId } = useBuild()
   const { capture } = useSnapshot()
   const { collections, isLoading, deletingIds, save, remove } = useCollections()
   const [saving, setSaving] = useState(false)
@@ -32,7 +32,7 @@ export function CollectionPanel() {
     setSaving(true)
     try {
       const snapshot = capture() || undefined
-      await save(buildName, selection as Record<string, unknown>, snapshot)
+      await save(buildName, { kitId, ...selection } as Record<string, unknown>, snapshot)
       setName('')
     } catch {
       /* toast handled in hook */
@@ -119,7 +119,10 @@ export function CollectionPanel() {
                   />
                   <button
                     type="button"
-                    onClick={() => loadSelection(normalizeSelection(collection.partsJson))}
+                    onClick={() => {
+                      const parsed = parseSavedBuild(collection.partsJson)
+                      loadSelection(parsed.selection, parsed.kitId)
+                    }}
                     className="min-w-0 flex-1 text-left text-[11px] font-semibold text-ink hover:text-primary-2"
                   >
                     {collection.name}

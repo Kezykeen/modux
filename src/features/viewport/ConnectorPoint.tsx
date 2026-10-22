@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Plus } from "lucide-react";
-import { CATALOG, RARITY_META } from '@/data/catalog';
+import { RARITY_META } from '@/data/catalog';
 import { useBuild, useHover } from '@/features/builder';
 import { CATEGORY_ICONS } from '@/shared/icons';
 import { playHoverSfx } from '@/audio';
@@ -14,14 +14,14 @@ interface ConnectorPointProps {
 }
 
 export function ConnectorPoint({ category, index }: ConnectorPointProps) {
-  const { selection, activeCategory, setActiveCategory } = useBuild();
+  const { selection, activeCategory, setActiveCategory, catalog } = useBuild();
   const { hoveredCategory, setHoveredCategory } = useHover();
   const Icon = CATEGORY_ICONS[category.id];
 
   const selectedIds = isStackableCategory(category.id)
     ? (selection[category.id] ?? [])
     : [selection[category.id]];
-  const item = CATALOG.find((c) => c.id === selectedIds[0]);
+  const item = catalog.find((c) => c.id === selectedIds[0]);
   const extraCount = isStackableCategory(category.id)
     ? Math.max(selectedIds.length - 1, 0)
     : 0;

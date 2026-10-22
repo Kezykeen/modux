@@ -53,6 +53,7 @@ export function AppRouter() {
           </Suspense>
         }
       />
+      <Route path="/customize/*" element={<Navigate to="/customize" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

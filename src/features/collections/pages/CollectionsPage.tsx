@@ -3,21 +3,19 @@ import { motion } from 'motion/react'
 import { ArrowRight, Box, Trash2 } from 'lucide-react'
 import { CommerceLayout } from '@/widgets'
 import { useAuth } from '@/features/auth'
-import { useBuild } from '@/features/builder'
 import { useCollections } from '../hooks/useCollections'
-import { normalizeSelection } from '@/features/builder/utils/normalize-selection'
+import { parseSavedBuild } from '@/features/builder/utils/normalize-selection'
 import { resolveSnapshotUrl } from '@/lib/assets'
 import { CollectionsPageSkeleton, Spinner } from '@/shared/components'
 
 export function CollectionsPage() {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
-  const { loadSelection } = useBuild()
   const { collections, isLoading, error, deletingIds, remove } = useCollections()
 
   const loadBuild = (partsJson: unknown) => {
-    loadSelection(normalizeSelection(partsJson))
-    navigate('/customize')
+    const parsed = parseSavedBuild(partsJson)
+    navigate('/customize', { state: { selection: parsed.selection, kitId: parsed.kitId } })
   }
 
   if (!isAuthenticated) {

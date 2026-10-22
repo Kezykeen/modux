@@ -15,6 +15,7 @@ import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { Object3D, Vector3, type DirectionalLight, type OrthographicCamera, type PerspectiveCamera } from "three";
 import { useMediaQuery } from '@/shared/hooks';
 import { AvatarModel, figurineShadowFocusY } from "./AvatarModel";
+import { useBuild } from '@/features/builder'
 import { AssetWarmup } from "./AssetWarmup";
 import { Platform } from "./Platform";
 import { SpotlightBackground } from "./SpotlightBackground";
@@ -412,6 +413,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
   { autoRotate, overlayRef },
   ref,
 ) {
+  const { kitId } = useBuild()
   const isMobile = useMediaQuery('(max-width: 767px)')
   const dpr: [number, number] = isMobile ? [1, 1.25] : [1, 2]
   const msaa = isMobile ? 0 : 4
@@ -447,9 +449,9 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
       <pointLight position={[0, -0.6, 1.5]} intensity={1.4} color="#c026d3" />
 
       <Suspense fallback={null}>
-        <AvatarModel />
+        <AvatarModel key={kitId} />
       </Suspense>
-      <AssetWarmup />
+      <AssetWarmup key={kitId} />
       <Platform />
       <ContactShadows
         position={[0, -0.925, 0]}

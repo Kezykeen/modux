@@ -2,7 +2,6 @@ import { Suspense, memo, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import { useGLTF, useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { CATALOG, BODY_ASSET_PATHS } from '@/data/catalog';
 import { useBuild, useHover } from '@/features/builder';
 import { type CatalogItem, type CategoryId } from '@/shared/types';
 import {
@@ -49,10 +48,12 @@ const EMPTY_TEXTURES: LoadedTexturesByUrl = {}
 
 function NativeAssetInner({
   path,
+  cacheKey,
   highlighted = false,
   animateIn = false,
 }: {
   path: string
+  cacheKey: string
   highlighted?: boolean
   animateIn?: boolean
 }) {
@@ -61,6 +62,7 @@ function NativeAssetInner({
     return (
       <NativeAssetModel
         path={path}
+        cacheKey={cacheKey}
         highlighted={highlighted}
         animateIn={animateIn}
         spec={undefined}
@@ -72,6 +74,7 @@ function NativeAssetInner({
   return (
     <NativeAssetTextured
       path={path}
+      cacheKey={cacheKey}
       highlighted={highlighted}
       animateIn={animateIn}
       spec={spec}
@@ -81,11 +84,13 @@ function NativeAssetInner({
 
 function NativeAssetTextured({
   path,
+  cacheKey,
   highlighted,
   animateIn,
   spec,
 }: {
   path: string
+  cacheKey: string
   highlighted: boolean
   animateIn: boolean
   spec: NonNullable<(typeof ASSET_TEXTURES)[string]>
@@ -94,6 +99,7 @@ function NativeAssetTextured({
   return (
     <NativeAssetModel
       path={path}
+      cacheKey={cacheKey}
       highlighted={highlighted}
       animateIn={animateIn}
       spec={spec}
@@ -104,12 +110,14 @@ function NativeAssetTextured({
 
 function NativeAssetModel({
   path,
+  cacheKey,
   highlighted = false,
   animateIn = false,
   spec,
   textures,
 }: {
   path: string
+  cacheKey: string
   highlighted?: boolean
   animateIn?: boolean
   spec: (typeof ASSET_TEXTURES)[string] | undefined
@@ -127,8 +135,8 @@ function NativeAssetModel({
   // timeline — writing it here on every memo rerun is what made textured
   // parts vanish on hover and tab changes.
   const { model, uniforms } = useMemo(
-    () => getPreparedAsset(path, scene, spec, textures),
-    [path, scene, spec, textures],
+    () => getPreparedAsset(path, scene, spec, textures, cacheKey),
+    [path, cacheKey, scene, spec, textures],
   )
 
   useLayoutEffect(() => {
@@ -138,19 +146,19 @@ function NativeAssetModel({
   }, [animateIn, model])
 
   useEffect(() => {
-    markAssetMounted(path, true);
+    markAssetMounted(cacheKey, true);
     if (settled.current) markCriticalAssetReady(path)
-    return () => markAssetMounted(path, false);
-  }, [path]);
+    return () => markAssetMounted(cacheKey, false);
+  }, [path, cacheKey]);
 
   // Extracting the outline walks every mesh, so it is only ever done once per
   // asset. If the warm-up has already built it we use it on the spot; if not,
   // it waits a frame rather than blocking the one that applied the item.
   const [trace, setTrace] = useState<THREE.BufferGeometry | null>(() =>
-    animateIn && hasTraceGeometry(path) ? getTraceGeometry(path, model) : null,
+    animateIn && hasTraceGeometry(cacheKey) ? getTraceGeometry(cacheKey, model) : null,
   );
   const [traceReady, setTraceReady] = useState(
-    !animateIn || hasTraceGeometry(path),
+    !animateIn || hasTraceGeometry(cacheKey),
   );
 
   useEffect(() => {
@@ -159,7 +167,7 @@ function NativeAssetModel({
     let cancelled = false;
     const handle = window.requestAnimationFrame(() => {
       if (cancelled) return;
-      setTrace(getTraceGeometry(path, model));
+      setTrace(getTraceGeometry(cacheKey, model));
       setTraceReady(true);
     });
 
@@ -167,16 +175,16 @@ function NativeAssetModel({
       cancelled = true;
       window.cancelAnimationFrame(handle);
     };
-  }, [animateIn, traceReady, path, model]);
+  }, [animateIn, traceReady, cacheKey, model]);
 
   const traceMaterials = useMemo(() => {
     if (!trace) return null;
     return getTraceMaterials(
-      path,
+      cacheKey,
       trace.userData.center as THREE.Vector3,
       (trace.userData.radius as number | undefined) ?? 0.25,
     );
-  }, [trace, path]);
+  }, [trace, cacheKey]);
 
   const traceGroup = useRef<THREE.Group>(null);
   const shockwaveGroup = useRef<THREE.Group>(null);
@@ -292,14 +300,26 @@ function NativeAssetModel({
  * or textures. Without this, the parent boundary unmounted the whole avatar
  * for a frame — which is what made rotation and bobbing look like they paused.
  */
-function NativeAsset(props: {
-  path: string;
-  highlighted?: boolean;
-  animateIn?: boolean;
+function NativeAsset({
+  path,
+  variant,
+  highlighted,
+  animateIn,
+}: {
+  path: string
+  variant?: 'mirror-x'
+  highlighted?: boolean
+  animateIn?: boolean
 }) {
+  const cacheKey = variant ? `${path}#${variant}` : path
   return (
     <Suspense fallback={null}>
-      <NativeAssetInner {...props} />
+      <NativeAssetInner
+        path={path}
+        cacheKey={cacheKey}
+        highlighted={highlighted}
+        animateIn={animateIn}
+      />
     </Suspense>
   );
 }
@@ -311,11 +331,11 @@ function SelectedSlotAsset({
 }: {
   categoryId: Exclude<CategoryId, 'accessory' | 'weapon'>
 }) {
-  const { selection } = useBuild();
+  const { selection, catalog } = useBuild();
   const { hoveredCategory } = useHover();
   const selectedId = selection[categoryId];
   const item = selectedId
-    ? CATALOG.find((catalogItem) => catalogItem.id === selectedId)
+    ? catalog.find((catalogItem) => catalogItem.id === selectedId)
     : undefined;
 
   if (!item) return null;
@@ -331,10 +351,10 @@ function SelectedSlotAsset({
 }
 
 function SelectedStack({ categoryId }: { categoryId: 'accessory' | 'weapon' }) {
-  const { selection } = useBuild()
+  const { selection, catalog } = useBuild()
   const { hoveredCategory } = useHover()
   const equipped = (selection[categoryId] ?? [])
-    .map((id) => CATALOG.find((catalogItem) => catalogItem.id === id))
+    .map((id) => catalog.find((catalogItem) => catalogItem.id === id))
     .filter((item): item is CatalogItem => Boolean(item))
 
   return (
@@ -353,6 +373,7 @@ function SelectedStack({ categoryId }: { categoryId: 'accessory' | 'weapon' }) {
 
 export function AvatarModel() {
   const groupRef = useRef<THREE.Group>(null);
+  const { kit } = useBuild();
 
   useFrame((state) => {
     if (!groupRef.current) return;
@@ -361,8 +382,11 @@ export function AvatarModel() {
 
   return (
     <group ref={groupRef} rotation={FIGURINE_ROTATION} scale={FIGURINE_SCALE}>
-      {BODY_ASSET_PATHS.map((path) => (
+      {kit.bodyPaths.map((path) => (
         <MemoNativeAsset key={path} path={path} />
+      ))}
+      {(kit.mirrorXPaths ?? []).map((path) => (
+        <MemoNativeAsset key={`${path}#mirror-x`} path={path} variant="mirror-x" />
       ))}
       <SelectedSlotAsset categoryId="shoes" />
       <SelectedSlotAsset categoryId="pants" />
