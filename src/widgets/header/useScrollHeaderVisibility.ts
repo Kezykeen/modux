@@ -25,6 +25,9 @@ function readScrollY(root: Element | Window) {
 /**
  * Hides the header while scrolling down; reveals it when scrolling up.
  * Always forced visible at the top — fast flings included.
+ *
+ * On /customize, scroll-up does not bring it back — only returning to the
+ * top of the page does, so the sticky stage stays unobstructed.
  */
 export function useScrollHeaderVisibility(headerRef: RefObject<HTMLElement | null>) {
   const location = useLocation()
@@ -32,6 +35,7 @@ export function useScrollHeaderVisibility(headerRef: RefObject<HTMLElement | nul
   const hiddenRef = useRef(false)
   const lastYRef = useRef(0)
   const tickingRef = useRef(false)
+  const revealOnlyAtTop = location.pathname.startsWith('/customize')
 
   useEffect(() => {
     hiddenRef.current = false
@@ -61,7 +65,7 @@ export function useScrollHeaderVisibility(headerRef: RefObject<HTMLElement | nul
         nextHidden = false
       } else if (delta > DELTA_THRESHOLD) {
         nextHidden = true
-      } else if (delta < -DELTA_THRESHOLD) {
+      } else if (!revealOnlyAtTop && delta < -DELTA_THRESHOLD) {
         nextHidden = false
       }
 
@@ -79,7 +83,7 @@ export function useScrollHeaderVisibility(headerRef: RefObject<HTMLElement | nul
     root.addEventListener('scroll', onScroll, { passive: true })
     apply()
     return () => root.removeEventListener('scroll', onScroll)
-  }, [headerRef, location.pathname])
+  }, [headerRef, location.pathname, revealOnlyAtTop])
 
   return hidden
 }
