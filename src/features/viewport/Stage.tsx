@@ -12,9 +12,9 @@ import {
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
-import { Object3D, Vector3, type DirectionalLight, type OrthographicCamera, type PerspectiveCamera } from "three";
+import { Object3D, Vector2, Vector3, type DirectionalLight, type OrthographicCamera, type PerspectiveCamera } from "three";
 import { useMediaQuery } from '@/shared/hooks';
-import { AvatarModel, figurineShadowFocusY } from "./AvatarModel";
+import { AvatarModel, FIGURINE_REST_SHADOW_Y, figurineShadowFocusY } from "./AvatarModel";
 import { AssetWarmup } from "./AssetWarmup";
 import { Platform } from "./Platform";
 import { SpotlightBackground } from "./SpotlightBackground";
@@ -27,6 +27,13 @@ export interface StageHandle {
 
 interface StageProps {
   autoRotate: boolean;
+  /** When false, orbit/zoom are locked (used for crisp frozen 2D presentation). */
+  interactive?: boolean;
+  /**
+   * Prefer device pixel ratio for the live frame. Used while presenting 2D so the
+   * full-height stage is sharp instead of stretching a short 3D capture.
+   */
+  presentation?: boolean;
   /** Viewport overlay root — zoom writes a CSS var here for the connector lines. */
   overlayRef?: RefObject<HTMLElement | null>;
 }
@@ -36,6 +43,8 @@ const AVATAR_HEIGHT = 1.28;
 const AVATAR_WIDTH = 1.05;
 const AVATAR_CENTER_Y = -0.32;
 const FRAME_MARGIN = 1.52;
+/** Tighter crop for frozen 2D so the figure fills the tall phone frame. */
+const PRESENTATION_FRAME_MARGIN = 1.16;
 /** Closest allowed camera distance as a fraction of the framed (starting) distance. */
 const MIN_ZOOM_RATIO = 0.52;
 /** Connector landing stop at framed distance (matches previous INNER_STOP). */
@@ -72,14 +81,17 @@ const ORBIT_DIRECTION = new Vector3();
 function CameraRig({
   controlsRef,
   frameRef,
+  presentation = false,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>;
   frameRef: React.RefObject<((preserveOrbit: boolean) => void) | null>;
+  presentation?: boolean;
 }) {
   const camera = useThree((state) => state.camera) as PerspectiveCamera;
   const width = useThree((state) => state.size.width);
   const height = useThree((state) => state.size.height);
+  const margin = presentation ? PRESENTATION_FRAME_MARGIN : FRAME_MARGIN;
 
   const frame = useCallback(
     (preserveOrbit: boolean) => {
@@ -87,8 +99,8 @@ function CameraRig({
       const horizontalFov =
         2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
       const framedDistance = Math.max(
-        (AVATAR_HEIGHT * FRAME_MARGIN) / (2 * Math.tan(verticalFov / 2)),
-        (AVATAR_WIDTH * FRAME_MARGIN) / (2 * Math.tan(horizontalFov / 2)),
+        (AVATAR_HEIGHT * margin) / (2 * Math.tan(verticalFov / 2)),
+        (AVATAR_WIDTH * margin) / (2 * Math.tan(horizontalFov / 2)),
       );
       const minDistance = framedDistance * MIN_ZOOM_RATIO;
 
@@ -160,7 +172,7 @@ function CameraRig({
         camera.lookAt(TARGET);
       }
     },
-    [camera, controlsRef],
+    [camera, controlsRef, margin],
   );
 
   const framed = useRef(false);
@@ -168,7 +180,7 @@ function CameraRig({
   useEffect(() => {
     frame(framed.current);
     framed.current = true;
-  }, [frame, width, height]);
+  }, [frame, width, height, presentation]);
 
   useEffect(() => {
     frameRef.current = frame;
@@ -308,32 +320,58 @@ function ZoomOverlaySync({
   return null;
 }
 
+/** Still export: prefer native DPR, never below 2×, capped for memory. */
+const SNAPSHOT_DPR_MAX = 3
+const SNAPSHOT_JPEG_QUALITY = 0.97
+
 function SnapshotBridge({
   snapshotRef,
 }: {
   snapshotRef: React.RefObject<(() => string | null) | null>;
 }) {
   const gl = useThree((state) => state.gl);
+  const advance = useThree((state) => state.advance);
 
   useEffect(() => {
     const scratch = document.createElement("canvas");
     const ctx = scratch.getContext("2d");
+    const size = new Vector2();
 
     snapshotRef.current = () => {
       if (!ctx) return null;
-      const source = gl.domElement;
-      if (!source.width || !source.height) return null;
 
+      gl.getSize(size);
+      if (!size.x || !size.y) return null;
+
+      const prevRatio = gl.getPixelRatio();
+      const device = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+      const captureDpr = Math.min(Math.max(device, 2), SNAPSHOT_DPR_MAX);
+
+      gl.setPixelRatio(captureDpr);
+      gl.setSize(size.x, size.y, false);
+      // Two advances: first applies the new drawing-buffer size to postprocessing,
+      // second presents a clean frame into that buffer.
+      advance(performance.now());
+      advance(performance.now());
+
+      const source = gl.domElement;
       scratch.width = source.width;
       scratch.height = source.height;
+      ctx.imageSmoothingEnabled = false;
       ctx.drawImage(source, 0, 0);
-      return scratch.toDataURL("image/jpeg", 0.92);
+      const dataUrl = scratch.toDataURL("image/jpeg", SNAPSHOT_JPEG_QUALITY);
+
+      gl.setPixelRatio(prevRatio);
+      gl.setSize(size.x, size.y, false);
+      advance(performance.now());
+
+      return dataUrl;
     };
 
     return () => {
       snapshotRef.current = null;
     };
-  }, [gl, snapshotRef]);
+  }, [advance, gl, snapshotRef]);
 
   return null;
 }
@@ -367,7 +405,7 @@ function CanvasGrabCursor() {
  * Tight shadow map that tracks the idle bob. A wide, fixed frustum is what made
  * the hair shadow crawl across the cheek in steps when the face was zoomed in.
  */
-function KeyLight({ mapSize }: { mapSize: number }) {
+function KeyLight({ mapSize, frozen = false }: { mapSize: number; frozen?: boolean }) {
   const light = useRef<DirectionalLight>(null);
   const target = useMemo(() => new Object3D(), []);
 
@@ -390,7 +428,11 @@ function KeyLight({ mapSize }: { mapSize: number }) {
   }, [mapSize]);
 
   useFrame(({ clock }) => {
-    target.position.set(0, figurineShadowFocusY(clock.elapsedTime), 0);
+    target.position.set(
+      0,
+      frozen ? FIGURINE_REST_SHADOW_Y : figurineShadowFocusY(clock.elapsedTime),
+      0,
+    );
     target.updateMatrixWorld();
   });
 
@@ -409,13 +451,19 @@ function KeyLight({ mapSize }: { mapSize: number }) {
 }
 
 export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
-  { autoRotate, overlayRef },
+  { autoRotate, interactive = true, presentation = false, overlayRef },
   ref,
 ) {
   const isMobile = useMediaQuery('(max-width: 767px)')
-  const dpr: [number, number] = isMobile ? [1, 1.25] : [1, 2]
-  const msaa = isMobile ? 0 : 4
-  const shadowMapSize = isMobile ? 1024 : 2048
+  // Live 3D stays modest on phones; presentation (frozen 2D) uses the device DPR.
+  const dpr: [number, number] = presentation
+    ? [1, Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2, 3)]
+    : isMobile
+      ? [1, 1.5]
+      : [1, 2]
+  const msaa = presentation || !isMobile ? 4 : 0
+  const shadowMapSize = isMobile && !presentation ? 1024 : 2048
+  const canOrbit = interactive && autoRotate
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   const frameRef = useRef<((preserveOrbit: boolean) => void) | null>(null);
@@ -434,7 +482,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
 
       {/* Kept low so the coloured rims read as light rather than as a wash. */}
       <ambientLight intensity={0.5} />
-      <KeyLight mapSize={shadowMapSize} />
+      <KeyLight mapSize={shadowMapSize} frozen={presentation} />
       {/* The signature violet ray. Left and behind the shoulder on purpose: it
           rakes the left edge of the silhouette, which is what makes it read as
           a ray from the side. Moving it in front of the model instead spills
@@ -447,7 +495,7 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
       <pointLight position={[0, -0.6, 1.5]} intensity={1.4} color="#c026d3" />
 
       <Suspense fallback={null}>
-        <AvatarModel />
+        <AvatarModel frozen={presentation} />
       </Suspense>
       <AssetWarmup />
       <Platform />
@@ -464,23 +512,28 @@ export const Stage = forwardRef<StageHandle, StageProps>(function Stage(
       <OrbitControls
         ref={controlsRef}
         makeDefault
+        enabled={interactive}
         enablePan={false}
-        enableZoom
+        enableZoom={interactive}
         zoomSpeed={0.85}
-        autoRotate={autoRotate}
+        autoRotate={canOrbit}
         autoRotateSpeed={0.7}
         minDistance={2.6}
         maxDistance={5.5}
         minPolarAngle={DEFAULT_POLAR_MIN}
         maxPolarAngle={DEFAULT_POLAR_MAX}
         target={[0, AVATAR_CENTER_Y, 0]}
-        enableDamping
+        enableDamping={interactive}
         dampingFactor={0.08}
       />
-      <CameraRig controlsRef={controlsRef} frameRef={frameRef} />
+      <CameraRig
+        controlsRef={controlsRef}
+        frameRef={frameRef}
+        presentation={presentation}
+      />
       <ZoomOverlaySync controlsRef={controlsRef} overlayRef={overlayRef} />
       <SnapshotBridge snapshotRef={snapshotRef} />
-      <CanvasGrabCursor />
+      {interactive ? <CanvasGrabCursor /> : null}
 
       {/* Light MSAA softens silhouette stairsteps; bloom still owns the glow look. */}
       <EffectComposer multisampling={msaa}>

@@ -19,7 +19,7 @@ export function SoundToggle() {
       aria-pressed={enabled}
       aria-label={enabled ? 'Mute soundtrack' : 'Play soundtrack'}
       title={enabled ? 'Mute soundtrack' : 'Play soundtrack'}
-      className={`group relative flex h-9 items-center gap-2 rounded-full border px-3 transition-all duration-200 ${
+      className={`group relative flex h-9 items-center gap-2 rounded-full border px-2.5 transition-all duration-200 sm:px-3 ${
         enabled
           ? 'border-primary-3/60 bg-primary/15 text-primary-2 shadow-[0_0_16px_rgba(168,85,247,0.4)]'
           : 'border-white/8 bg-white/[0.03] text-muted hover:border-white/20 hover:text-ink'
@@ -48,7 +48,7 @@ export function SoundToggle() {
         ))}
       </span>
 
-      <span className="hidden text-[11px] font-semibold tracking-wide whitespace-nowrap sm:inline">
+      <span className="hidden text-[11px] font-semibold tracking-wide whitespace-nowrap min-[1401px]:inline">
         {enabled ? 'Music On' : 'Music Off'}
       </span>
     </button>

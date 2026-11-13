@@ -39,6 +39,9 @@ export function figurineBob(time: number) {
   return (Math.sin(time * 1.1) * 0.5 + 0.5) * FIGURINE_BOB
 }
 
+/** Mid-torso focus with the figure parked on the pedestal (no bob). */
+export const FIGURINE_REST_SHADOW_Y = FIGURINE_Y + 0.58
+
 /** World-space point the key-light shadow camera should stay locked to. */
 export function figurineShadowFocusY(time: number) {
   return FIGURINE_Y + figurineBob(time) + 0.58
@@ -391,12 +394,15 @@ function SelectedStack({ categoryId }: { categoryId: 'accessory' | 'weapon' }) {
   )
 }
 
-export function AvatarModel() {
+export function AvatarModel({ frozen = false }: { frozen?: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
     if (!groupRef.current) return;
-    groupRef.current.position.y = FIGURINE_Y + figurineBob(state.clock.elapsedTime);
+    // 2D presentation parks on the pedestal — the idle bob reads as floating.
+    groupRef.current.position.y = frozen
+      ? FIGURINE_Y
+      : FIGURINE_Y + figurineBob(state.clock.elapsedTime);
   });
 
   return (

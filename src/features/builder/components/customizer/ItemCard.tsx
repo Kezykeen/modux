@@ -69,14 +69,14 @@ export function ItemCard({ item, layout }: ItemCardProps) {
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 400, damping: 26 }}
-      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-lg border text-left transition-colors duration-200 ${
+      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-lg border text-left transition-colors duration-200 max-lg:rounded-md ${
         selected
           ? 'border-primary-2/70 shadow-[0_0_0_1px_rgba(192,132,252,0.35),0_6px_16px_rgba(168,85,247,0.22)]'
           : 'border-white/8 hover:border-white/20'
       }`}
     >
       <div
-        className="relative flex aspect-5/4 w-full shrink-0 items-center justify-center overflow-hidden bg-black/40"
+        className="relative flex aspect-5/4 w-full shrink-0 items-center justify-center overflow-hidden bg-black/40 max-lg:aspect-square"
         style={
           item.previewPath
             ? undefined
@@ -90,20 +90,21 @@ export function ItemCard({ item, layout }: ItemCardProps) {
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <Icon className="h-5 w-5 text-white/80 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3" strokeWidth={1.4} />
+          <Icon className="h-5 w-5 text-white/80 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 max-lg:h-3.5 max-lg:w-3.5" strokeWidth={1.4} />
         )}
         <div className="absolute inset-0 bg-black/10 transition-opacity duration-200 group-hover:bg-black/0" />
 
         <span
-          className="absolute top-1 left-1 rounded-full px-1 py-px text-[7.5px] font-bold tracking-wide text-white/95 backdrop-blur-sm"
+          className="absolute top-1 left-1 rounded-full px-1 py-px text-[7.5px] font-bold tracking-wide text-white/95 backdrop-blur-sm max-lg:top-0.5 max-lg:left-0.5 max-lg:px-0.5 max-lg:text-[6px]"
           style={{ background: `${rarity.color}33`, border: `1px solid ${rarity.color}66` }}
         >
-          {rarity.label}
+          <span className="max-lg:hidden">{rarity.label}</span>
+          <span className="hidden max-lg:inline">{rarity.label.slice(0, 1)}</span>
         </span>
 
         {isHot && (
-          <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm">
-            <Flame className="h-2 w-2 text-orange-400" />
+          <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm max-lg:top-0.5 max-lg:right-0.5 max-lg:h-2.5 max-lg:w-2.5">
+            <Flame className="h-2 w-2 text-orange-400 max-lg:h-1.5 max-lg:w-1.5" />
           </span>
         )}
 
@@ -114,16 +115,16 @@ export function ItemCard({ item, layout }: ItemCardProps) {
             transition={{ type: 'spring', stiffness: 500, damping: 20 }}
             className="absolute inset-0 flex items-center justify-center bg-primary-3/30 backdrop-blur-[1px]"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white shadow-[0_0_12px_rgba(168,85,247,0.8)]">
-              <Check className="h-3 w-3" />
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white shadow-[0_0_12px_rgba(168,85,247,0.8)] max-lg:h-3.5 max-lg:w-3.5">
+              <Check className="h-3 w-3 max-lg:h-2 max-lg:w-2" />
             </span>
           </motion.span>
         )}
       </div>
 
-      <div className="flex flex-col gap-px bg-panel-2/80 px-1.5 py-1">
-        <p className="truncate text-[10.5px] font-semibold leading-tight text-ink">{item.name}</p>
-        <p className="text-[10.5px] font-bold leading-tight text-primary-2">${item.price.toFixed(2)}</p>
+      <div className="flex flex-col gap-px bg-panel-2/80 px-1.5 py-1 max-lg:gap-0 max-lg:px-0.5 max-lg:py-0.5">
+        <p className="truncate text-[10.5px] font-semibold leading-tight text-ink max-lg:text-[8px]">{item.name}</p>
+        <p className="text-[10.5px] font-bold leading-tight text-primary-2 max-lg:text-[8px]">${item.price.toFixed(2)}</p>
       </div>
     </motion.button>
   )

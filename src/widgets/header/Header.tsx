@@ -63,6 +63,21 @@ export function Header() {
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty(
+      "--header-offset",
+      hidden
+        ? "0px"
+        : "calc(3.5rem + env(safe-area-inset-top, 0px))",
+    );
+    root.dataset.headerHidden = hidden ? "true" : "false";
+    return () => {
+      root.style.removeProperty("--header-offset");
+      delete root.dataset.headerHidden;
+    };
+  }, [hidden]);
+
   return (
     <>
       <header
@@ -175,6 +190,7 @@ export function Header() {
             </div>
           ) : (
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 xl:gap-3">
+              {isCustomize ? <SoundToggle /> : null}
               <Link
                 to="/login"
                 className="hidden rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-[13px] font-semibold text-ink transition-all hover:border-primary-3/50 hover:bg-white/[0.08] sm:inline-flex"

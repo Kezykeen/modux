@@ -24,7 +24,7 @@ export function CategoryTabs() {
               playClickSfx()
               setActiveCategory(tab.id)
             }}
-            className="relative rounded-md px-1.5 py-1 text-[11px] font-semibold whitespace-nowrap transition-colors"
+            className="relative rounded-md px-1.5 py-1 text-[11px] font-semibold whitespace-nowrap transition-colors max-lg:px-1.5 max-lg:py-1 max-lg:text-[10px]"
           >
             {isActive && (
               <motion.span
@@ -34,11 +34,11 @@ export function CategoryTabs() {
               />
             )}
             <span
-              className={`relative z-10 flex items-center gap-1 ${
+              className={`relative z-10 flex items-center gap-1 max-lg:gap-0.5 ${
                 isActive ? 'text-white' : 'text-muted hover:text-ink'
               }`}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <Icon className="h-3.5 w-3.5 shrink-0 max-lg:h-3 max-lg:w-3" />
               {tab.label}
             </span>
           </button>

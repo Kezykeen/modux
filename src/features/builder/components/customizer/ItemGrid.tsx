@@ -53,7 +53,7 @@ export function ItemGrid() {
           ) : layout === "grid" ? (
             <motion.div
               key="grid"
-              className="grid w-full grid-cols-2 gap-1.5 pt-0.5 sm:grid-cols-3"
+              className="grid w-full grid-cols-4 gap-1 pt-0.5 sm:grid-cols-3 sm:gap-1.5"
             >
               {items.map((item, i) => (
                 <motion.div

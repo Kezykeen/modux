@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { RotateCcw, RefreshCw, Maximize, Minimize } from "lucide-react";
 import { Stage, type StageHandle } from "./Stage";
 import { Flat2DView } from "./Flat2DView";
@@ -24,6 +24,8 @@ export function ViewportPanel() {
   const containerRef = useRef<HTMLDivElement>(null)
   const lastSnapshotRef = useRef<string | null>(null)
 
+  const is2d = viewMode === '2d'
+
   useEffect(() => {
     registerCapture(() => {
       const live = stageRef.current?.snapshot() ?? null
@@ -45,14 +47,28 @@ export function ViewportPanel() {
     return () => window.clearTimeout(timer)
   }, [viewMode])
 
-  const handleViewMode = (mode: ViewMode) => {
-    if (mode === '2d') {
+  // After the stage expands for 2D, grab a high-res still for cart/download cache.
+  useEffect(() => {
+    if (!is2d) return
+    let cancelled = false
+    const capture = () => {
+      if (cancelled) return
       const next = stageRef.current?.snapshot() ?? null
-      if (next) {
-        setSnapshot(next)
-        lastSnapshotRef.current = next
-      }
+      if (!next) return
+      setSnapshot(next)
+      lastSnapshotRef.current = next
     }
+    // Wait for layout + WebGL resize to the full-height presentation size.
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(capture)
+    })
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(id)
+    }
+  }, [is2d])
+
+  const handleViewMode = (mode: ViewMode) => {
     setViewMode(mode)
   }
 
@@ -97,13 +113,13 @@ export function ViewportPanel() {
       >
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-linear-to-t from-[#070510] via-[#070510]/85 to-transparent max-lg:block min-[1401px]:hidden" />
 
-        <div className="pointer-events-none absolute top-3 left-4 z-10 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-muted-2/70 max-lg:rounded-full max-lg:border max-lg:border-white/8 max-lg:bg-black/30 max-lg:px-2.5 max-lg:py-1 max-lg:backdrop-blur-md">
+        <div className="pointer-events-none absolute top-3 left-4 z-10 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-muted-2/70 max-lg:top-2.5 max-lg:left-3 max-lg:rounded-full max-lg:border max-lg:border-white/8 max-lg:bg-black/35 max-lg:px-2 max-lg:py-0.5 max-lg:text-[9px] max-lg:backdrop-blur-md">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-2" />
           <span className="hidden min-[1401px]:inline">MODU-X · LIVE PREVIEW</span>
           <span className="min-[1401px]:hidden">MODU-X · LIVE</span>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-end px-4 pt-3 min-[1401px]:hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-end px-3 pt-3 min-[1401px]:hidden max-lg:px-3 max-lg:pt-2.5">
           <SegmentedToggle
             layoutId="view-mode-mobile"
             value={viewMode}
@@ -116,30 +132,33 @@ export function ViewportPanel() {
           />
         </div>
 
-        <AnimatePresence mode="wait">
-          {viewMode === "3d" ? (
+        {/* Keep the WebGL stage mounted in both modes so 2D is a sharp frozen
+            live render at full viewport size — not a stretched JPEG of the short 3D panel. */}
+        <div
+          className={`absolute inset-0 ${is2d ? "pointer-events-none" : ""}`}
+        >
+          <Stage
+            ref={stageRef}
+            autoRotate={!is2d && autoRotate}
+            interactive={!is2d}
+            presentation={is2d}
+            overlayRef={containerRef}
+          />
+        </div>
+
+        <AnimatePresence>
+          {is2d ? (
             <motion.div
-              key="3d"
+              key="2d-chrome"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.35 }}
-              className="absolute inset-0"
+              transition={{ duration: 0.28 }}
+              className="absolute inset-0 z-20"
             >
-              <Stage ref={stageRef} autoRotate={autoRotate} overlayRef={containerRef} />
+              <Flat2DView onCapture={() => stageRef.current?.snapshot() ?? lastSnapshotRef.current} />
             </motion.div>
-          ) : (
-            <motion.div
-              key="2d"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.35 }}
-              className="absolute inset-0"
-            >
-              <Flat2DView snapshot={snapshot} />
-            </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
 
         <AnimatePresence>
@@ -163,41 +182,41 @@ export function ViewportPanel() {
             : null}
         </AnimatePresence>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 min-[1401px]:hidden">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/12 bg-abyss/80 px-2 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_0_1px_rgba(168,85,247,0.15)] backdrop-blur-xl">
-            <IconButton
-              label="Reset view"
-              disabled={viewMode === '2d'}
-              onClick={() => stageRef.current?.reset()}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </IconButton>
-            <IconButton
-              label="Toggle auto-rotate"
-              active={autoRotate}
-              disabled={viewMode === '2d'}
-              onClick={() => setAutoRotate((v) => !v)}
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${autoRotate ? "animate-spin-slow" : ""}`}
-              />
-            </IconButton>
-            <IconButton label="Fullscreen" onClick={toggleFullscreen}>
-              {isFullscreen ? (
-                <Minimize className="h-4 w-4" />
-              ) : (
-                <Maximize className="h-4 w-4" />
-              )}
-            </IconButton>
+        {!is2d ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-4 min-[1401px]:hidden">
+            <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/12 bg-abyss/80 px-1.5 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_0_1px_rgba(168,85,247,0.15)] backdrop-blur-xl">
+              <IconButton
+                label="Reset view"
+                onClick={() => stageRef.current?.reset()}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </IconButton>
+              <IconButton
+                label="Toggle auto-rotate"
+                active={autoRotate}
+                onClick={() => setAutoRotate((v) => !v)}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${autoRotate ? "animate-spin-slow" : ""}`}
+                />
+              </IconButton>
+              <IconButton label="Fullscreen" onClick={toggleFullscreen}>
+                {isFullscreen ? (
+                  <Minimize className="h-4 w-4" />
+                ) : (
+                  <Maximize className="h-4 w-4" />
+                )}
+              </IconButton>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center justify-between px-0.5 max-lg:hidden">
         <div className="flex items-center gap-2">
           <IconButton
             label="Reset view"
-            disabled={viewMode === '2d'}
+            disabled={is2d}
             onClick={() => stageRef.current?.reset()}
           >
             <RotateCcw className="h-4 w-4" />
@@ -205,7 +224,7 @@ export function ViewportPanel() {
           <IconButton
             label="Toggle auto-rotate"
             active={autoRotate}
-            disabled={viewMode === '2d'}
+            disabled={is2d}
             onClick={() => setAutoRotate((v) => !v)}
           >
             <RefreshCw
